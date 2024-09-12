@@ -56,6 +56,7 @@ class Thing {
 // enter state
 // exit state
 
+// effect like react component
 let effect1 = function* () {
   // Enter state - on
   yield; // Wait

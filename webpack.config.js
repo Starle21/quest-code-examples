@@ -2,9 +2,9 @@ const webpack = require("webpack");
 const path = require("path");
 
 const config = {
-  entry: "./11_allDown/11.allDown.js",
+  entry: "./12_singleSource/12.singleSource.2.js",
   output: {
-    path: path.resolve(__dirname, "11_allDown"),
+    path: path.resolve(__dirname, "12_singleSource"),
     filename: "bundle.js",
   },
   module: {
@@ -32,7 +32,7 @@ const config = {
     ],
   },
   devServer: {
-    static: path.resolve(__dirname, "11_allDown"),
+    static: path.resolve(__dirname, "12_singleSource"),
     compress: false,
     port: 3001,
   },
