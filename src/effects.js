@@ -1,7 +1,12 @@
-// effect - description of work -  yields to
-// runtime
+// effect - description of work, individual sync? operation
+// description of a work to do (series of sequential steps, computation, program) that is lazy and immutable(source scripts are not mutated at runtime)
+// fiber - running instance of an effect
+// effect yields to runtime
 // that keeps execution trace of calling effects
 // while it executes them
+
+// fibers - can be paused, restarted, awaited to get their result, or interrupted to cancel them
+// in fiber, everything is sync to the fiber - fiber only runs when it has values, there is no async
 
 // effect - deferred function, lambda, value, run at later time
 // fetch(url) => () => Promise
@@ -36,6 +41,20 @@
 // gather all the changes - join memoized values or run the functions that have different args
 // step 2
 // now when another function is nested inside the first function...
+
+// ------------
+// make own native component
+// connect component with imperative code
+// let react reconcile it
+
+// ---------------
+// live has only functional components which have hooks
+// hooks are the escape hatches for imperative code
+// functional component then yields lambdas back
+// to be gather by higher up component and called as regular program
+
+// incremental - memoize function, rerun only again if inputs changed
+// reactive - memoize deep trees recursively
 
 //--------------------------
 class Thing {

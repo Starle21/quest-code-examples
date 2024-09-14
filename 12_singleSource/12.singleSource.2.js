@@ -5,9 +5,10 @@ let accessors;
 let isFocus = false;
 
 // DATA - WRITE
+// store at the top
 let xCoord = "";
 
-// ELEMENTS
+// ELEMENTS / COMPONENTS
 const NetworkButton = () => [
   "button",
   null,
@@ -20,6 +21,11 @@ const NetworkButton = () => [
   },
 ];
 const Label = () => ["div", null, "x coordinate"];
+const Svg = () => [
+  "svg",
+  { xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 200 80" },
+  [Input(), xCoord ? Square() : Text()],
+];
 const Input = () => [
   "input",
   null,
@@ -27,11 +33,6 @@ const Input = () => [
   (e) => {
     xCoord = e.target.value;
   },
-];
-const Svg = () => [
-  "svg",
-  { xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 200 80" },
-  [xCoord ? Square() : Text()],
 ];
 const Text = () => [
   "text",
@@ -42,11 +43,12 @@ const Square = () => [
   "rect",
   { x: xCoord, y: "20", width: "30", height: "30" },
 ];
-const Coordinate = () => ["div", null, xCoord];
+const Coordinate = ({ xCoord }) => ["div", null, `x coordinate is: ${xCoord}`];
 
 // KEEP MEMOIZED DATA STRUCTURE OVER COMPONENTS' LIFETIME
+// pass data as prop
 function createVDOM() {
-  return [NetworkButton(), Label(), Input(), Svg(), Coordinate()];
+  return [NetworkButton(), Label(), Input(), Svg(), Coordinate({ xCoord })];
 }
 
 // TOP LEVEL API
@@ -61,6 +63,7 @@ function render() {
 
   accessors && isFocus && accessors[2].focus(); //keep this code
 }
+
 // CREATE ACCESSORS, RENDER TO DOM
 function convert(element) {
   let node = document.createElement(element[0]);
@@ -78,7 +81,7 @@ function convert(element) {
     if (element[1]?.height) node.setAttribute("height", element[1].height);
     if (element[1]?.className) node.classList.add(element[1].className);
     node.textContent = element[2];
-    if (node.value) node.value = element[2];
+    node.value = element[2];
   }
   node.onclick = element[3];
   node.oninput = element[3];
@@ -89,7 +92,7 @@ function convert(element) {
 function makeNetworkRequest(handler) {
   console.log("request pending");
   setTimeout(() => {
-    handler(Math.ceil(Math.random() * 100));
+    handler(Math.ceil(Math.random() * 160));
   }, 2000);
 }
 
@@ -98,5 +101,6 @@ function context(element) {
 }
 
 // RUN
-render();
-// setInterval(render, 100);
+// setInterval(render, 400);
+
+// --------------
