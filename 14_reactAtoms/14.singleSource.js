@@ -1,33 +1,51 @@
 // description of an result element [type, props, contents(children), handler, directive]
 // passing arguments/props as parameters to component functions
-// handlers still access data defined in global scope
+// HOOK - defined topmost App component, which will 'own' the data
 let vDOM;
 let accessors;
 let isFocus = false;
 
-// DATA - WRITE
-// store at the top
-let xCoord = "";
+// DATA - WRITE - HOOK
+let _value;
+function useState(initial) {
+  const state = _value || initial;
+  const setValue = (newValue) => {
+    _value = newValue;
+    render();
+  };
+  return [state, setValue];
+}
 
 // ELEMENTS / COMPONENTS
-const NetworkButton = () => [
+const App = () => {
+  const [xCoord, setXCoord] = useState("");
+  return [
+    NetworkButton({ setXCoord }),
+    Label(),
+    Input({ x: xCoord, setXCoord }),
+    Svg({ x: xCoord }),
+    Coordinate({ x: xCoord }),
+  ];
+};
+
+const NetworkButton = ({ setXCoord }) => [
   "button",
   null,
   "request remote data",
   () => {
     makeNetworkRequest((newValue) => {
-      xCoord = newValue;
-      console.log("new data!", xCoord);
+      setXCoord(newValue);
+      console.log("local data updated from remote source");
     });
   },
 ];
 const Label = () => ["div", null, `x coordinate:`];
-const Input = ({ x }) => [
+const Input = ({ x, setXCoord }) => [
   "input",
   null,
   x,
   (e) => {
-    xCoord = e.target.value;
+    setXCoord(e.target.value);
   },
 ];
 const Svg = ({ x }) => [
@@ -45,27 +63,21 @@ const Coordinate = ({ x }) => ["div", null, `x coordinate is: ${x}`];
 
 // GATHER COMPONENTS TOGETHER
 // pass data as prop
-function createVDOM() {
-  return [
-    NetworkButton(),
-    Label(),
-    Input({ x: xCoord }),
-    Svg({ x: xCoord }),
-    Coordinate({ x: xCoord }),
-  ];
+function createVDOM(Component) {
+  return Component();
 }
 
 // TOP LEVEL API
-function render() {
-  accessors && document.activeElement == accessors[2]
+function render(Component) {
+  accessors && document.activeElement == document.querySelector("input")
     ? (isFocus = true)
     : (isFocus = false); // keep this code
 
-  vDOM = createVDOM();
+  vDOM = Component ? createVDOM(Component) : createVDOM(App);
   accessors = vDOM.map(convert);
   document.body.replaceChildren(...accessors);
 
-  accessors && isFocus && accessors[2].focus(); //keep this code
+  accessors && isFocus && document.querySelector("input").focus(); //keep this code
 }
 
 // CREATE ACCESSORS, RENDER TO DOM
@@ -105,4 +117,24 @@ function context(element) {
 }
 
 // RUN
-// setInterval(render, 400);
+render(App);
+// setInterval(() => render(App), 400);
+
+// --------------
+// DATA - WRITE
+// store in the topmost component - this version does not work, recreating App and setValue on every render
+// const App = () => {
+//   let xCoord = "";
+//   const setValue = (newValue) => {
+//     xCoord = newValue;
+//     return xCoord;
+//   };
+
+//   return [
+//     NetworkButton(),
+//     Label(),
+//     Input({ x: xCoord, setValue }),
+//     Svg({ x: xCoord }),
+//     Coordinate({ x: xCoord }),
+//   ];
+// };

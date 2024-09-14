@@ -1,4 +1,9 @@
 // ------------------------------
+// generator - lets function yield - pause execution and return value to the caller
+// the state of the function, including local variables and the instruction pointer, is saved, allowing the function to resume from that point when the next value is requested
+// Generators don't let you yield in the middle of a stack. You have to wrap every single function in a generator.
+// generators are stateful. i can just step through the yields. first and middle computation has been done. then if the middle computation gets and update,
+//   however, i have to start from scratch, i cannot reuse the value completed by the first computation
 // ------------------------------
 // TESTING
 
@@ -79,7 +84,7 @@ const useState = (initialValue) => {
 // (make that fiber for div #root the workInProgress fiber)
 // (start work loop with that wip)
 // (check props passed to wip fiber - they are null bcs it's the top div #root)
-// (reconcile children - wip fiber, current child, new child effect - the App effect)
+// (reconcile children - wip fiber (div#root), current child (null), new child effect (the App element/effect))
 // new fiber for App created:
 const AppFiber = {
   type: "functionalComponent",
@@ -89,13 +94,62 @@ const AppFiber = {
   alternateFiberOnCurrentTree: null,
   child: "not yet resolved",
 };
+// -
 // wip moved to AppFiber
 // check props passed to the AppFiber if there is current fiber (there is not)
 // renderWithHooks
 // call App functional component App(), from AppFiber
 var children = Component(props, context);
 // calls hooks if there are any - useState fce imported through ReactCurrentDispatcher
+// component's fiber accessible through ReactCurrentOwner.current in component's scope
+// memoized state on fiber updated
+// reconcile children - unwrap effects, create fibers for the first one
+// -
+// recurse
 
 // 1. create element effect
 // 2. create fiber for the effect
 // 3. process that fiber - call its function (for functional component) or create host element (for host fiber)
+
+// --------x------
+// --------x------
+// CLOSURE
+// stateful function with closures - objects?
+// global scope variable - can be changed by anyone
+// let y = 5;
+// function add() {
+//   return y++;
+// }
+// console.log(add());
+// console.log(add());
+// y = 10;
+// console.log(add());
+
+// --------------
+// contain variable within closure - I'm only returning expression, not y value - prints 6 all the time
+// function getAdd() {
+//   let y = 5;
+//   return () => {
+//     return y + 1;
+//   };
+// }
+// const add = getAdd();
+// console.log(add());
+// console.log(add());
+// y = 10;
+// console.log(add());
+
+// --------------
+// contain variable within closure, returning y
+// y can't be accesed from outside
+// function getAdd() {
+//   let y = 5;
+//   return () => {
+//     return (y = y + 1);
+//   };
+// }
+// const add = getAdd();
+// console.log(add());
+// console.log(add());
+// y = 10;
+// console.log(add());

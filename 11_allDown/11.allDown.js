@@ -23,7 +23,7 @@ const Text = () => {
   ];
 };
 // TOP LEVEL API
-function render() {
+function dataToDOM() {
   const accessor = xCoord ? convert(Square()) : convert(Text());
   domSvg.replaceChildren(accessor);
 }
@@ -43,4 +43,4 @@ function convert(element) {
   return node;
 }
 
-// setInterval(render, 100);
+// setInterval(dataToDOM, 100);

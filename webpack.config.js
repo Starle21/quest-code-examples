@@ -2,7 +2,7 @@ const webpack = require("webpack");
 const path = require("path");
 
 const config = {
-  entry: "./12_singleSource/12.singleSource.2.js",
+  entry: "./12_singleSource/12.singleSource.4.js",
   output: {
     path: path.resolve(__dirname, "12_singleSource"),
     filename: "bundle.js",
