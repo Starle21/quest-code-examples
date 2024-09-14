@@ -118,7 +118,6 @@ function context(element) {
 
 // RUN
 render(App);
-// setInterval(() => render(App), 400);
 
 // --------------
 // DATA - WRITE

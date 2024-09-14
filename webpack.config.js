@@ -2,9 +2,9 @@ const webpack = require("webpack");
 const path = require("path");
 
 const config = {
-  entry: "./12_singleSource/12.singleSource.4.js",
+  entry: "./14_reactAtoms/14.reactAtoms.2.js",
   output: {
-    path: path.resolve(__dirname, "12_singleSource"),
+    path: path.resolve(__dirname, "14_reactAtoms"),
     filename: "bundle.js",
   },
   module: {
@@ -32,7 +32,7 @@ const config = {
     ],
   },
   devServer: {
-    static: path.resolve(__dirname, "12_singleSource"),
+    static: path.resolve(__dirname, "14_reactAtoms"),
     compress: false,
     port: 3001,
   },
