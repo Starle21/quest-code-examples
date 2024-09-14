@@ -43,12 +43,12 @@ const Square = () => [
   "rect",
   { x: xCoord, y: "20", width: "30", height: "30" },
 ];
-const Coordinate = ({ xCoord }) => ["div", null, `x coordinate is: ${xCoord}`];
+const Coordinate = () => ["div", null, `x coordinate is: ${xCoord}`];
 
 // KEEP MEMOIZED DATA STRUCTURE OVER COMPONENTS' LIFETIME
 // pass data as prop
 function createVDOM() {
-  return [NetworkButton(), Label(), Input(), Svg(), Coordinate({ xCoord })];
+  return [NetworkButton(), Label(), Input(), Svg(), Coordinate()];
 }
 
 // TOP LEVEL API
