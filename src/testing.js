@@ -103,7 +103,7 @@ var children = Component(props, context);
 // calls hooks if there are any - useState fce imported through ReactCurrentDispatcher
 // component's fiber accessible through ReactCurrentOwner.current in component's scope
 // memoized state on fiber updated
-// reconcile children - unwrap effects, create fibers for the first one
+// reconcile children - unwrap jsx, create effects, create fibers for the first one
 // -
 // recurse
 
