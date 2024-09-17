@@ -153,7 +153,7 @@ function render(Component, DOMRoot) {
   if (!accessors) {
     vDOM = createVDOM(_Component);
     console.log(vDOM);
-    // accessors = vDOM.map(convert);
+    accessors = [vDOM].map(convert);
     // document.body.replaceChildren(...accessors);
   }
   // RERENDER
@@ -167,29 +167,33 @@ function render(Component, DOMRoot) {
 }
 
 // CREATE ACCESSORS, RENDER TO DOM
-function convert(element) {
-  let node = document.createElement(element[0]);
-  if (context(element[0]))
-    node = document.createElementNS("http://www.w3.org/2000/svg", element[0]);
-  if (element[1]?.xmlns) node.setAttribute("xmlns", element[1].xmlns);
-  if (element[1]?.viewBox) node.setAttribute("viewBox", element[1].viewBox);
-  if (element[2] instanceof Array) {
-    const childAccessor = element[2].map(convert);
-    node.append(...childAccessor);
-  } else {
-    if (element[1]?.x) node.setAttribute("x", element[1].x);
-    if (element[1]?.y) node.setAttribute("y", element[1].y);
-    if (element[1]?.width) node.setAttribute("width", element[1].width);
-    if (element[1]?.height) node.setAttribute("height", element[1].height);
-    if (element[1]?.className) node.classList.add(element[1].className);
-    if (element[1]?.id) node.id = element[1].id;
-    node.textContent = element[2];
-    node.value = element[2];
-  }
-  node.onclick = element[3];
-  node.oninput = element[3];
-  return node;
+export function convert(element) {
+  console.log(element);
 }
+// // CREATE ACCESSORS, RENDER TO DOM
+// function convert(element) {
+//   let node = document.createElement(element[0]);
+//   if (context(element[0]))
+//     node = document.createElementNS("http://www.w3.org/2000/svg", element[0]);
+//   if (element[1]?.xmlns) node.setAttribute("xmlns", element[1].xmlns);
+//   if (element[1]?.viewBox) node.setAttribute("viewBox", element[1].viewBox);
+//   if (element[2] instanceof Array) {
+//     const childAccessor = element[2].map(convert);
+//     node.append(...childAccessor);
+//   } else {
+//     if (element[1]?.x) node.setAttribute("x", element[1].x);
+//     if (element[1]?.y) node.setAttribute("y", element[1].y);
+//     if (element[1]?.width) node.setAttribute("width", element[1].width);
+//     if (element[1]?.height) node.setAttribute("height", element[1].height);
+//     if (element[1]?.className) node.classList.add(element[1].className);
+//     if (element[1]?.id) node.id = element[1].id;
+//     node.textContent = element[2];
+//     node.value = element[2];
+//   }
+//   node.onclick = element[3];
+//   node.oninput = element[3];
+//   return node;
+// }
 
 // FIND DIFF ON UPDATE
 function findDiff(prevVDOM, currentVDOM) {

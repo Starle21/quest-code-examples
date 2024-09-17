@@ -131,6 +131,7 @@ describe("effect", () => {
     };
     const result = createVDOM(element);
     // issue with deep equality of functions
-    expect(JSON.parse(JSON.stringify(result))).toStrictEqual(effect);
+    // expect(JSON.parse(JSON.stringify(result))).toEqual(effect);
+    expect(JSON.stringify(result)).toEqual(JSON.stringify(effect));
   });
 });
