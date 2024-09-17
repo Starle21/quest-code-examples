@@ -11,7 +11,8 @@ describe("effect", () => {
   test("effect for host element gets created", () => {
     const element = () => Coordinate({ coord: 10, name: "x" });
     const effect = {
-      type: "div",
+      type: "htmlNode",
+      domType: "div",
       props: null,
       children: "x coordinate is: 10",
     };
@@ -21,10 +22,15 @@ describe("effect", () => {
   test("effect for host element with children gets created", () => {
     const element = () => Svg({ x: 10, y: 5 });
     const effect = {
-      type: "svg",
+      type: "svgNode",
+      domType: "svg",
       props: { xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 200 80" },
       children: [
-        { type: "rect", props: { x: 10, y: 5, width: "30", height: "30" } },
+        {
+          type: "svgNode",
+          domType: "rect",
+          props: { x: 10, y: 5, width: "30", height: "30" },
+        },
       ],
     };
     const result = createVDOM(element);
@@ -33,11 +39,20 @@ describe("effect", () => {
   test("effect for host element with multiple children gets created", () => {
     const element = () => SvgMultiple({ x: 10, y: 5 });
     const effect = {
-      type: "svg",
+      type: "svgNode",
+      domType: "svg",
       props: { xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 200 80" },
       children: [
-        { type: "rect", props: { x: 10, y: 5, width: "30", height: "30" } },
-        { type: "rect", props: { x: 10, y: 5, width: "30", height: "30" } },
+        {
+          type: "svgNode",
+          domType: "rect",
+          props: { x: 10, y: 5, width: "30", height: "30" },
+        },
+        {
+          type: "svgNode",
+          domType: "rect",
+          props: { x: 10, y: 5, width: "30", height: "30" },
+        },
       ],
     };
     const result = createVDOM(element);
@@ -46,20 +61,24 @@ describe("effect", () => {
   test("effect for host element with deeply nested children gets created", () => {
     const element = () => Deep({ coord: 10, name: "zz" });
     const effect = {
-      type: "div",
+      type: "htmlNode",
+      domType: "div",
       props: null,
       children: [
         {
-          type: "div",
+          type: "htmlNode",
+          domType: "div",
           props: null,
           children: [
             {
-              type: "div",
+              type: "htmlNode",
+              domType: "div",
               props: null,
               children: "zz coordinate is: 10",
             },
             {
-              type: "div",
+              type: "htmlNode",
+              domType: "div",
               props: null,
               children: "zz coordinate is: 10",
             },
@@ -74,10 +93,12 @@ describe("effect", () => {
     const element = App;
     const effect = {
       type: "component",
+      domType: null,
       props: null,
       children: [
         {
-          type: "button",
+          type: "htmlNode",
+          domType: "button",
           props: null,
           children: "request remote data",
           handler: () => {
@@ -88,18 +109,30 @@ describe("effect", () => {
             });
           },
         },
-        { type: "div", props: null, children: "x coordinate:" },
         {
-          type: "input",
+          type: "htmlNode",
+          domType: "div",
+          props: null,
+          children: "x coordinate:",
+        },
+        {
+          type: "htmlNode",
+          domType: "input",
           props: { id: "x" },
           children: "",
           handler: (e) => {
             setXCoord(e.target.value);
           },
         },
-        { type: "div", props: null, children: "y coordinate:" },
         {
-          type: "input",
+          type: "htmlNode",
+          domType: "div",
+          props: null,
+          children: "y coordinate:",
+        },
+        {
+          type: "htmlNode",
+          domType: "input",
           props: { id: "y" },
           children: "",
           handler: (e) => {
@@ -107,23 +140,27 @@ describe("effect", () => {
           },
         },
         {
-          type: "svg",
+          type: "svgNode",
+          domType: "svg",
           props: { xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 200 80" },
           children: [
             {
-              type: "text",
+              type: "svgNode",
+              domType: "text",
               props: { x: "0", y: "40", className: "small" },
               children: "Fill out all inputs!",
             },
           ],
         },
         {
-          type: "div",
+          type: "htmlNode",
+          domType: "div",
           props: null,
           children: "x coordinate is: ",
         },
         {
-          type: "div",
+          type: "htmlNode",
+          domType: "div",
           props: null,
           children: "y coordinate is: ",
         },

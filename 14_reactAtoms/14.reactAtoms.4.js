@@ -30,6 +30,7 @@ export const App = () => {
   const [yCoord, setYCoord] = useState("");
   return {
     type: "component",
+    domType: null,
     props: null,
     children: [
       () => NetworkButton({ setXCoord, setYCoord }),
@@ -46,7 +47,8 @@ export const App = () => {
 
 const NetworkButton = ({ setXCoord, setYCoord }) => {
   return {
-    type: "button",
+    type: "htmlNode",
+    domType: "button",
     props: null,
     children: "request remote data",
     handler: () => {
@@ -59,11 +61,17 @@ const NetworkButton = ({ setXCoord, setYCoord }) => {
   };
 };
 const Label = ({ name }) => {
-  return { type: "div", props: null, children: `${name} coordinate:` };
+  return {
+    type: "htmlNode",
+    domType: "div",
+    props: null,
+    children: `${name} coordinate:`,
+  };
 };
 const Input = ({ name, coord, setCoord }) => {
   return {
-    type: "input",
+    type: "htmlNode",
+    domType: "input",
     props: { id: name },
     children: coord,
     handler: (e) => {
@@ -74,7 +82,8 @@ const Input = ({ name, coord, setCoord }) => {
 export const Svg = ({ x, y }) => {
   const element = x && y ? () => Square({ x, y }) : () => Text();
   return {
-    type: "svg",
+    type: "svgNode",
+    domType: "svg",
     props: { xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 200 80" },
     children: [element],
   };
@@ -82,17 +91,23 @@ export const Svg = ({ x, y }) => {
 
 const Text = () => {
   return {
-    type: "text",
+    type: "svgNode",
+    domType: "text",
     props: { x: "0", y: "40", className: "small" },
     children: "Fill out all inputs!",
   };
 };
 const Square = ({ x, y }) => {
-  return { type: "rect", props: { x, y, width: "30", height: "30" } };
+  return {
+    type: "svgNode",
+    domType: "rect",
+    props: { x, y, width: "30", height: "30" },
+  };
 };
 export const Coordinate = ({ coord, name }) => {
   return {
-    type: "div",
+    type: "htmlNode",
+    domType: "div",
     props: null,
     children: `${name} coordinate is: ${coord}`,
   };
@@ -101,7 +116,8 @@ export const Coordinate = ({ coord, name }) => {
 export const SvgMultiple = ({ x, y }) => {
   const element = x && y ? () => Square({ x, y }) : () => Text();
   return {
-    type: "svg",
+    type: "svgNode",
+    domType: "svg",
     props: { xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 200 80" },
     children: [element, element],
   };
@@ -109,14 +125,16 @@ export const SvgMultiple = ({ x, y }) => {
 
 export const Deep = ({ coord, name }) => {
   return {
-    type: "div",
+    type: "htmlNode",
+    domType: "div",
     props: null,
     children: [NestedInDeep],
   };
 };
 const NestedInDeep = () => {
   return {
-    type: "div",
+    type: "htmlNode",
+    domType: "div",
     props: null,
     children: [
       () => Coordinate({ coord: 10, name: "zz" }),
@@ -169,6 +187,15 @@ function render(Component, DOMRoot) {
 // CREATE ACCESSORS, RENDER TO DOM
 export function convert(element) {
   console.log(element);
+  switch (element.type) {
+    case "component": {
+      console.log("this is fce component", element);
+      const children = element.children.map((el) => convert(el));
+      break;
+    }
+    case "button": {
+    }
+  }
 }
 // // CREATE ACCESSORS, RENDER TO DOM
 // function convert(element) {
