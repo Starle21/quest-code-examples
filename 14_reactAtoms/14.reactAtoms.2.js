@@ -1,5 +1,4 @@
 // description of an result element [type, props, contents(children), handler, directive]
-// passing arguments/props as parameters to component functions
 // MULTIPLE USESTATE HOOKS IN ONE COMPONENT
 // ---
 let vDOM;
@@ -11,7 +10,7 @@ let isFocusY = false;
 let _values = [];
 let pointer = 0;
 function useState(initial) {
-  state = _values[pointer] || initial;
+  const state = _values[pointer] || initial;
   let _pointer = pointer;
   const setValue = (newValue) => {
     _values[_pointer] = newValue;
@@ -84,7 +83,7 @@ function createVDOM(Component) {
 // TOP LEVEL API
 let _Component;
 function render(Component) {
-  activeElement();
+  setFocus();
 
   if (Component) _Component = Component;
   pointer = 0;
@@ -93,7 +92,7 @@ function render(Component) {
   accessors = vDOM.map(convert);
   document.body.replaceChildren(...accessors);
 
-  setFocus();
+  keepFocus();
 }
 
 // CREATE ACCESSORS, RENDER TO DOM
@@ -135,19 +134,17 @@ function makeNetworkRequest(handler) {
 function context(element) {
   return element === "svg" || element === "rect" || element === "text";
 }
-function activeElement() {
+function setFocus() {
   if (accessors) {
-    let activeInputX = document.querySelector("input#x");
-    let activeInputY = document.querySelector("input#y");
-    document.activeElement == activeInputX
+    document.activeElement == document.querySelector("input#x")
       ? (isFocusX = true)
       : (isFocusX = false);
-    document.activeElement == activeInputY
+    document.activeElement == document.querySelector("input#y")
       ? (isFocusY = true)
       : (isFocusY = false);
   }
 }
-function setFocus() {
+function keepFocus() {
   let activeInputX = document.querySelector("input#x");
   let activeInputY = document.querySelector("input#y");
   accessors && isFocusX && activeInputX.focus();

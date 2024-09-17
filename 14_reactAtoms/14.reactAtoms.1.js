@@ -1,6 +1,6 @@
 // description of an result element [type, props, contents(children), handler, directive]
 // passing arguments/props as parameters to component functions
-// HOOK - defined topmost App component, which 'owns' the data, render only on change
+HOOK - defined topmost App component, which 'owns' the data, render only on change
 let vDOM;
 let accessors;
 let isFocus = false;

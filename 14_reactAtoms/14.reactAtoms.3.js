@@ -1,18 +1,19 @@
 // description of an result element [type, props, contents(children), handler, directive]
-// passing arguments/props as parameters to component functions
 // DIFF ALGORITHM
 // ---
 let vDOM;
 let prevVDOM;
 let accessors;
-let isFocusX = false;
-let isFocusY = false;
+const focusables = [
+  { type: "x", focused: undefined },
+  { type: "y", focused: undefined },
+];
 
 // DATA - WRITE - HOOK
 let _values = [];
 let pointer = 0;
 function useState(initial) {
-  state = _values[pointer] || initial;
+  const state = _values[pointer] || initial;
   let _pointer = pointer;
   const setValue = (newValue) => {
     _values[_pointer] = newValue;
@@ -85,23 +86,25 @@ function createVDOM(Component) {
 // TOP LEVEL API
 let _Component;
 function render(Component) {
-  activeElement();
+  setFocus();
 
   if (Component) _Component = Component;
   pointer = 0;
 
+  // MOUNT
   if (!accessors) {
     vDOM = createVDOM(_Component);
     accessors = vDOM.map(convert);
     document.body.replaceChildren(...accessors);
-    // console.log(accessors);
-  } else {
+  }
+  // RERENDER
+  else {
     prevVDOM = vDOM;
     vDOM = createVDOM(_Component);
     findDiff(prevVDOM, vDOM);
   }
 
-  setFocus();
+  keepFocus();
 }
 
 // CREATE ACCESSORS, RENDER TO DOM
@@ -129,6 +132,7 @@ function convert(element) {
   return node;
 }
 
+// FIND DIFF ON UPDATE
 function findDiff(prevVDOM, currentVDOM) {
   for (let i = 0; i < currentVDOM.length; i++) {
     if (JSON.stringify(prevVDOM[i]) !== JSON.stringify(currentVDOM[i])) {
@@ -149,7 +153,7 @@ function makeNetworkRequest(handler) {
   setTimeout(() => {
     handler({
       x: Math.ceil(Math.random() * 160),
-      y: Math.ceil(Math.random() * 60),
+      y: Math.ceil(Math.random() * 40),
     });
   }, 2000);
 }
@@ -157,21 +161,24 @@ function makeNetworkRequest(handler) {
 function context(element) {
   return element === "svg" || element === "rect" || element === "text";
 }
-function activeElement() {
+
+function setFocus() {
   if (accessors) {
-    document.activeElement == document.querySelector("input#x")
-      ? (isFocusX = true)
-      : (isFocusX = false);
-    document.activeElement == document.querySelector("input#y")
-      ? (isFocusY = true)
-      : (isFocusY = false);
+    focusables.map((f) => {
+      document.activeElement == document.querySelector(`input#${f.type}`)
+        ? (f.focused = true)
+        : (f.focused = false);
+    });
   }
 }
-function setFocus() {
-  let activeInputX = document.querySelector("input#x");
-  let activeInputY = document.querySelector("input#y");
-  accessors && isFocusX && activeInputX.focus();
-  accessors && isFocusY && activeInputY.focus();
+function keepFocus() {
+  if (accessors) {
+    let focused = focusables.filter((f) => f.focused === true);
+    if (focused.type) {
+      let activeInput = document.querySelector(`input#${focused.type}`);
+      accessors && focused && activeInput.focus();
+    }
+  }
 }
 
 // RUN
