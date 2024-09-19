@@ -92,8 +92,8 @@ const Input = ({ name, coord, setCoord }) => {
   return {
     type: "htmlNode",
     domType: "input",
-    props: { id: name },
-    children: [() => Text({ nodeValue: coord })],
+    props: { id: name, value: coord },
+    children: null,
     handlers: {
       onInput: (e) => {
         setCoord(e.target.value);
@@ -170,12 +170,14 @@ const NestedInDeep = () => {
 // returns: effects : objs tree
 export const createVDOM = (component, parent) => {
   let effect = component();
-  effect = { ...effect, return: parent };
+  effect.return = parent;
   if (effect.children instanceof Array) {
     const children = effect.children.map((el) => {
       return createVDOM(el, effect);
     });
-    return { ...effect, children, return: parent };
+    effect.children = children;
+    effect.return = parent;
+    return effect;
   }
   return effect;
 };
@@ -192,19 +194,18 @@ function render(Component, DOMRoot) {
   pointer = 0;
 
   // MOUNT - dealing with create
-  if (!accessors) {
+  if (!wipVDOM) {
     // CALCULATION
     // unwrap components into effects
     wipVDOM = createVDOM(_Component, _currentRoot);
     console.log("after creating VDOM", wipVDOM);
-    console.log("---");
 
     // turn effects into accessors and connect them together except for the top one
     accessors = createDOMNodes(wipVDOM, _currentRoot);
-    console.log("after creating DOM nodes", accessors);
+    console.log("after creating DOM nodes", wipVDOM);
 
     // EFFECT
-    commitToRoot(accessors);
+    commitToRoot(wipVDOM);
   }
   // RERENDER - dealing with create, update, delete
   else {
@@ -236,28 +237,45 @@ function render(Component, DOMRoot) {
 }
 
 // CREATE ACCESSORS
-const createDOMNodes = (effect, container) => {
-  const accessor = convertToDOMNode(effect);
-  if (effect.children instanceof Array) {
-    const children = effect.children.map((child) => {
-      return createDOMNodes(child, accessor);
-    });
-    if (!container) {
-      const parentContainer = searchForHostParentAccessor(effect);
-      if (parentContainer === _currentRoot) {
-        return { ...effect, accessor, children };
-      } else {
-        return appendToParent(accessor, parentContainer);
-      }
-    }
-    if (accessor) {
-      appendToParent(accessor, container);
-    }
-    return { ...effect, accessor, children };
+function createDOMNodes(effect, container) {
+  const effectArray = [effect];
+  iterateOver(effectArray);
+}
+
+function iterateOver(effectArray) {
+  for (const effect of effectArray) {
+    processEffect(effect);
   }
-  appendToParent(accessor, container);
-  return { ...effect, accessor };
-};
+  for (const effect of effectArray) {
+    if (effect.children) {
+      iterateOver(effect.children);
+    }
+  }
+}
+
+function processEffect(effect) {
+  const accessor = convertToDOMNode(effect);
+  const parent = effect.return.accessor;
+  effect.accessor = accessor;
+
+  if (accessor && parent) {
+    appendToParent(accessor, parent);
+  } else if (parent === _currentRoot || !accessor) {
+    // noop
+  } else if (accessor && !parent) {
+    const parentContainer = searchForHostParentAccessor(effect);
+    if (parentContainer !== _currentRoot)
+      appendToParent(accessor, parentContainer);
+  }
+  return effect;
+}
+
+function searchForHostParentAccessor(effect) {
+  const childEffect = effect;
+  const parent = effect.return;
+  const parentContainer = parent.return;
+  return parentContainer;
+}
 
 function convertToDOMNode(effect) {
   switch (effect.type) {
@@ -311,13 +329,6 @@ function appendToParent(child, parent) {
 function commitToRoot(effects) {
   let node = findAccessor(effects);
   _currentRoot.appendChild(node);
-}
-
-function searchForHostParentAccessor(effect) {
-  const childEffect = effect;
-  const parent = effect.return;
-  const parentContainer = parent.return;
-  return parentContainer;
 }
 
 function findAccessor(effects) {
@@ -383,7 +394,7 @@ function keepFocus() {
 
 // RUN
 const root = document.querySelector("#root");
-// render(App, root);
+render(App, root);
 
 // ACCESSORS + EFFECTS
 // const createDOMNodes = (effect) => {
@@ -422,16 +433,6 @@ const root = document.querySelector("#root");
 // map
 // iterator
 // generator
-
-// const returnedParent = doSomething(parent)
-// const returnedChild = parent.array.map(child=> doSomething(child))
-// connect returnedChild to returnedParent
-// doSomethingElse to singleElement
-
-// effect
-// first return single effect
-// if children.isArray
-// effect.children.map(child=>return child)
 
 const effect = {
   type: "A",
@@ -492,26 +493,29 @@ const effectArray = [effect];
 // accessor, parent -> append to parent container -> void
 //          -> if there is no accessor - this is functional component -> noop
 //          -> if there is no parent - this is host child of functional component -> search for host parent accessor
-//          -> if the parent is the root -> return
+//          -> if the parent is the root -> noop
 // return expanded effect with its accessor, which makes it a mounted effect, aka fiber
 
-// iterate over the data structure
-// effects in array
-function iterateOver(effectArray) {
-  for (const effect of effectArray) {
-    processEffect(effect);
-  }
-  for (const effect of effectArray) {
-    if (effect.children) {
-      iterateOver(effect.children);
-    }
-  }
-}
-// process effect's children array
-
-// effect has return pointer to its parent
-function processEffect(effect) {
-  console.log(effect);
-}
-
-iterateOver(effectArray);
+// recursive version
+// const createDOMNodes = (effect, container) => {
+//   const accessor = convertToDOMNode(effect);
+//   if (effect.children instanceof Array) {
+//     const children = effect.children.map((child) => {
+//       return createDOMNodes(child, accessor);
+//     });
+//     if (!container) {
+//       const parentContainer = searchForHostParentAccessor(effect);
+//       if (parentContainer === _currentRoot) {
+//         return { ...effect, accessor, children };
+//       } else {
+//         return appendToParent(accessor, parentContainer);
+//       }
+//     }
+//     if (accessor) {
+//       appendToParent(accessor, container);
+//     }
+//     return { ...effect, accessor, children };
+//   }
+//   appendToParent(accessor, container);
+//   return { ...effect, accessor };
+// };
