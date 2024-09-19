@@ -193,6 +193,7 @@ function render(Component, DOMRoot) {
 
   // MOUNT - dealing with create
   if (!accessors) {
+    // CALCULATION
     // unwrap components into effects
     wipVDOM = createVDOM(_Component, _currentRoot);
     console.log("after creating VDOM", wipVDOM);
@@ -202,46 +203,36 @@ function render(Component, DOMRoot) {
     accessors = createDOMNodes(wipVDOM, _currentRoot);
     console.log("after creating DOM nodes", accessors);
 
+    // EFFECT
     commitToRoot(accessors);
   }
   // RERENDER - dealing with create, update, delete
   else {
-    // keep current effects
+    // CALCULATION
     currentVDOM = wipVDOM;
-    // create wip effects
     wipVDOM = createVDOM(_Component, _currentRoot);
+
     console.log("current", currentVDOM);
     console.log("wip", wipVDOM);
+
     // find differences
     // just calculation to gather changes to do
     // performing side effects right away
-    // - iterate over wip effects - first layer, second layer in first child ...
-    // - elements match - bail out
-    // - if domType doesn't match - delete and create
-    // - if domType matches, but changed - update
-    // - if element is missing - to be deleted
-    // - if element is extra - to be created
-    // findDiff(currentVDOM, wipVDOM);
+    // - iterate over wip dom - first layer, second layer in first child ...
+    // - element type the same and props the same - bail out, no mark
+    // - element the same, props changed - update mark
+    // - if domType doesn't match - delete and create mark
+    // - if element is extra in the new array - create mark
+    // - if element is missing in the new array, but there is one in the old - delete mark
+
+    // EFFECT
+    // perform mutation effects
+    // process deletions of the old
+    // process creation - place under parent node
+    // process updates - change props
   }
 
   keepFocus();
-}
-
-function findChildAccessor(effects) {
-  let childEffect = effects.children.find((child) => child.accessor);
-  if (!childEffect) {
-    return findChildAccessor(effects.children);
-  } else {
-    return childEffect.accessor;
-  }
-}
-
-function commitToRoot(effects) {
-  let node = effects.accessor;
-  if (!node) {
-    node = findChildAccessor(effects);
-  }
-  _currentRoot.appendChild(node);
 }
 
 // CREATE ACCESSORS
@@ -267,17 +258,6 @@ const createDOMNodes = (effect, container) => {
   appendToParent(accessor, container);
   return { ...effect, accessor };
 };
-
-function searchForHostParentAccessor(effect) {
-  const childEffect = effect;
-  const parent = effect.return;
-  const parentContainer = parent.return;
-  return parentContainer;
-}
-
-function appendToParent(child, parent) {
-  parent.appendChild(child);
-}
 
 function convertToDOMNode(effect) {
   switch (effect.type) {
@@ -321,6 +301,34 @@ function convertToDOMNode(effect) {
         });
       return node;
     }
+  }
+}
+
+function appendToParent(child, parent) {
+  parent.appendChild(child);
+}
+
+function commitToRoot(effects) {
+  let node = findAccessor(effects);
+  _currentRoot.appendChild(node);
+}
+
+function searchForHostParentAccessor(effect) {
+  const childEffect = effect;
+  const parent = effect.return;
+  const parentContainer = parent.return;
+  return parentContainer;
+}
+
+function findAccessor(effects) {
+  if (effects.accessor) {
+    return effects.accessor;
+  }
+  let childEffect = effects.children.find((child) => child.accessor);
+  if (!childEffect) {
+    return findAccessor(effects.children);
+  } else {
+    return childEffect.accessor;
   }
 }
 
@@ -375,7 +383,7 @@ function keepFocus() {
 
 // RUN
 const root = document.querySelector("#root");
-render(App, root);
+// render(App, root);
 
 // ACCESSORS + EFFECTS
 // const createDOMNodes = (effect) => {
@@ -401,3 +409,109 @@ render(App, root);
 //   }
 //   return { ...effect, accessor };
 // };
+
+// ----------
+// data organization in memory
+// data organization for practical use
+
+// iterations over/walking through various data structures
+// for i++
+// foreach
+// for sth in sth
+// while
+// map
+// iterator
+// generator
+
+// const returnedParent = doSomething(parent)
+// const returnedChild = parent.array.map(child=> doSomething(child))
+// connect returnedChild to returnedParent
+// doSomethingElse to singleElement
+
+// effect
+// first return single effect
+// if children.isArray
+// effect.children.map(child=>return child)
+
+const effect = {
+  type: "A",
+  accessor: "x",
+  props: { a: "a", b: "b" },
+  children: [
+    {
+      type: "AA",
+      accessor: null,
+      props: { c: "c" },
+      children: [
+        {
+          type: "AAA",
+          accessor: "x",
+          props: { a: "a", b: "b" },
+          children: [
+            {
+              type: "AAAA",
+              accessor: "x",
+              props: null,
+              children: null,
+            },
+          ],
+        },
+        {
+          type: "AAB",
+          accessor: "x",
+          props: { a: "a", b: "b" },
+          children: null,
+        },
+      ],
+    },
+    {
+      type: "AB",
+      accessor: null,
+      props: { c: "c" },
+      children: [
+        {
+          type: "ABA",
+          accessor: "x",
+          props: { a: "a", b: "b" },
+          children: null,
+        },
+      ],
+    },
+  ],
+};
+
+const effectArray = [effect];
+
+// ----
+// react - breadth first expansion of fiber tree
+
+// ----
+// iterate over the data structure separately from processing it
+
+// effect -> convert to dom node -> accessor
+// accessor, parent -> append to parent container -> void
+//          -> if there is no accessor - this is functional component -> noop
+//          -> if there is no parent - this is host child of functional component -> search for host parent accessor
+//          -> if the parent is the root -> return
+// return expanded effect with its accessor, which makes it a mounted effect, aka fiber
+
+// iterate over the data structure
+// effects in array
+function iterateOver(effectArray) {
+  for (const effect of effectArray) {
+    processEffect(effect);
+  }
+  for (const effect of effectArray) {
+    if (effect.children) {
+      iterateOver(effect.children);
+    }
+  }
+}
+// process effect's children array
+
+// effect has return pointer to its parent
+function processEffect(effect) {
+  console.log(effect);
+}
+
+iterateOver(effectArray);
