@@ -2,8 +2,8 @@
 // BETTER CREATEVDOM, BETTER CONVERT, BETTER DIFF, BETTER HANDLING OF UPDATE AND DELETE
 // passing top root element, calling component fce inside create VDOM
 // ---
-let vDOM;
-let prevVDOM;
+let wipVDOM;
+let currentVDOM;
 let accessors;
 const focusables = [
   { type: "x", focused: undefined },
@@ -32,6 +32,15 @@ export const App = () => {
     type: "component",
     domType: null,
     props: null,
+    children: [() => Container({ xCoord, yCoord, setXCoord, setYCoord })],
+  };
+};
+
+const Container = ({ xCoord, yCoord, setXCoord, setYCoord }) => {
+  return {
+    type: "htmlNode",
+    domType: "div",
+    props: null,
     children: [
       () => NetworkButton({ setXCoord, setYCoord }),
       () => Label({ name: "x" }),
@@ -45,18 +54,29 @@ export const App = () => {
   };
 };
 
+const Text = ({ nodeValue }) => {
+  return {
+    type: "textNode",
+    domType: "text",
+    props: { nodeValue },
+    children: null,
+  };
+};
+
 const NetworkButton = ({ setXCoord, setYCoord }) => {
   return {
     type: "htmlNode",
     domType: "button",
     props: null,
-    children: "request remote data",
-    handler: () => {
-      makeNetworkRequest(({ x, y }) => {
-        setXCoord(x);
-        setYCoord(y);
-        console.log("local data updated from remote source");
-      });
+    children: [() => Text({ nodeValue: "request remote data" })],
+    handlers: {
+      onClick: () => {
+        makeNetworkRequest(({ x, y }) => {
+          setXCoord(x);
+          setYCoord(y);
+          console.log("local data updated from remote source");
+        });
+      },
     },
   };
 };
@@ -65,7 +85,7 @@ const Label = ({ name }) => {
     type: "htmlNode",
     domType: "div",
     props: null,
-    children: `${name} coordinate:`,
+    children: [() => Text({ nodeValue: `${name} coordinate:` })],
   };
 };
 const Input = ({ name, coord, setCoord }) => {
@@ -73,14 +93,16 @@ const Input = ({ name, coord, setCoord }) => {
     type: "htmlNode",
     domType: "input",
     props: { id: name },
-    children: coord,
-    handler: (e) => {
-      setCoord(e.target.value);
+    children: [() => Text({ nodeValue: coord })],
+    handlers: {
+      onInput: (e) => {
+        setCoord(e.target.value);
+      },
     },
   };
 };
 export const Svg = ({ x, y }) => {
-  const element = x && y ? () => Square({ x, y }) : () => Text();
+  const element = x && y ? () => Square({ x, y }) : () => Alert();
   return {
     type: "svgNode",
     domType: "svg",
@@ -89,12 +111,12 @@ export const Svg = ({ x, y }) => {
   };
 };
 
-const Text = () => {
+const Alert = () => {
   return {
     type: "svgNode",
     domType: "text",
-    props: { x: "0", y: "40", className: "small" },
-    children: "Fill out all inputs!",
+    props: { x: "0", y: "40", class: "small" },
+    children: [() => Text({ nodeValue: "Fill out all inputs!" })],
   };
 };
 const Square = ({ x, y }) => {
@@ -109,7 +131,7 @@ export const Coordinate = ({ coord, name }) => {
     type: "htmlNode",
     domType: "div",
     props: null,
-    children: `${name} coordinate is: ${coord}`,
+    children: [() => Text({ nodeValue: `${name} coordinate is: ${coord}` })],
   };
 };
 // for testing
@@ -143,95 +165,175 @@ const NestedInDeep = () => {
   };
 };
 
-// GATHER COMPONENTS TOGETHER
-// component: fce
-export const createVDOM = (component) => {
-  const effect = component();
+// GATHER COMPONENTS, EFFECTS TOGETHER
+// args: component : fce
+// returns: effects : objs tree
+export const createVDOM = (component, parent) => {
+  let effect = component();
+  effect = { ...effect, return: parent };
   if (effect.children instanceof Array) {
     const children = effect.children.map((el) => {
-      return createVDOM(el);
+      return createVDOM(el, effect);
     });
-    return { ...effect, children };
+    return { ...effect, children, return: parent };
   }
   return effect;
 };
 
 // TOP LEVEL API
 let _Component;
-let _DOMroot;
+let _currentRoot;
 function render(Component, DOMRoot) {
   setFocus();
 
   // initialization
   if (Component) _Component = Component;
-  if (root) _DOMroot = DOMRoot;
+  if (DOMRoot) _currentRoot = DOMRoot;
   pointer = 0;
 
-  // MOUNT
+  // MOUNT - dealing with create
   if (!accessors) {
-    vDOM = createVDOM(_Component);
-    console.log(vDOM);
-    accessors = [vDOM].map(convert);
-    // document.body.replaceChildren(...accessors);
+    // unwrap components into effects
+    wipVDOM = createVDOM(_Component, _currentRoot);
+    console.log("after creating VDOM", wipVDOM);
+    console.log("---");
+
+    // turn effects into accessors and connect them together except for the top one
+    accessors = createDOMNodes(wipVDOM, _currentRoot);
+    console.log("after creating DOM nodes", accessors);
+
+    commitToRoot(accessors);
   }
-  // RERENDER
+  // RERENDER - dealing with create, update, delete
   else {
-    prevVDOM = vDOM;
-    vDOM = createVDOM(_Component);
-    findDiff(prevVDOM, vDOM);
+    // keep current effects
+    currentVDOM = wipVDOM;
+    // create wip effects
+    wipVDOM = createVDOM(_Component, _currentRoot);
+    console.log("current", currentVDOM);
+    console.log("wip", wipVDOM);
+    // find differences
+    // just calculation to gather changes to do
+    // performing side effects right away
+    // - iterate over wip effects - first layer, second layer in first child ...
+    // - elements match - bail out
+    // - if domType doesn't match - delete and create
+    // - if domType matches, but changed - update
+    // - if element is missing - to be deleted
+    // - if element is extra - to be created
+    // findDiff(currentVDOM, wipVDOM);
   }
 
-  // keepFocus();
+  keepFocus();
 }
 
-// CREATE ACCESSORS, RENDER TO DOM
-export function convert(element) {
-  console.log(element);
-  switch (element.type) {
+function findChildAccessor(effects) {
+  let childEffect = effects.children.find((child) => child.accessor);
+  if (!childEffect) {
+    return findChildAccessor(effects.children);
+  } else {
+    return childEffect.accessor;
+  }
+}
+
+function commitToRoot(effects) {
+  let node = effects.accessor;
+  if (!node) {
+    node = findChildAccessor(effects);
+  }
+  _currentRoot.appendChild(node);
+}
+
+// CREATE ACCESSORS
+const createDOMNodes = (effect, container) => {
+  const accessor = convertToDOMNode(effect);
+  if (effect.children instanceof Array) {
+    const children = effect.children.map((child) => {
+      return createDOMNodes(child, accessor);
+    });
+    if (!container) {
+      const parentContainer = searchForHostParentAccessor(effect);
+      if (parentContainer === _currentRoot) {
+        return { ...effect, accessor, children };
+      } else {
+        return appendToParent(accessor, parentContainer);
+      }
+    }
+    if (accessor) {
+      appendToParent(accessor, container);
+    }
+    return { ...effect, accessor, children };
+  }
+  appendToParent(accessor, container);
+  return { ...effect, accessor };
+};
+
+function searchForHostParentAccessor(effect) {
+  const childEffect = effect;
+  const parent = effect.return;
+  const parentContainer = parent.return;
+  return parentContainer;
+}
+
+function appendToParent(child, parent) {
+  parent.appendChild(child);
+}
+
+function convertToDOMNode(effect) {
+  switch (effect.type) {
     case "component": {
-      console.log("this is fce component", element);
-      const children = element.children.map((el) => convert(el));
-      break;
+      return null;
     }
-    case "button": {
+    case "htmlNode": {
+      let node = document.createElement(effect.domType);
+
+      // populate props
+      effect.props &&
+        Object.keys(effect.props).forEach((prop) => {
+          node[prop] = effect.props[prop];
+        });
+
+      // populate event handlers
+      effect.handlers &&
+        Object.keys(effect.handlers).forEach((handle) => {
+          const eventType = handle.toLocaleLowerCase().substring(2);
+          node.addEventListener(eventType, effect.handlers[handle]);
+        });
+
+      return node;
+    }
+    case "svgNode": {
+      let node = document.createElementNS(
+        "http://www.w3.org/2000/svg",
+        effect.domType
+      );
+      effect.props &&
+        Object.keys(effect.props).forEach((prop) => {
+          node.setAttribute(prop, effect.props[prop]);
+        });
+      return node;
+    }
+    case "textNode": {
+      let node = document.createTextNode("");
+      effect.props &&
+        Object.keys(effect.props).forEach((prop) => {
+          node[prop] = effect.props[prop];
+        });
+      return node;
     }
   }
 }
-// // CREATE ACCESSORS, RENDER TO DOM
-// function convert(element) {
-//   let node = document.createElement(element[0]);
-//   if (context(element[0]))
-//     node = document.createElementNS("http://www.w3.org/2000/svg", element[0]);
-//   if (element[1]?.xmlns) node.setAttribute("xmlns", element[1].xmlns);
-//   if (element[1]?.viewBox) node.setAttribute("viewBox", element[1].viewBox);
-//   if (element[2] instanceof Array) {
-//     const childAccessor = element[2].map(convert);
-//     node.append(...childAccessor);
-//   } else {
-//     if (element[1]?.x) node.setAttribute("x", element[1].x);
-//     if (element[1]?.y) node.setAttribute("y", element[1].y);
-//     if (element[1]?.width) node.setAttribute("width", element[1].width);
-//     if (element[1]?.height) node.setAttribute("height", element[1].height);
-//     if (element[1]?.className) node.classList.add(element[1].className);
-//     if (element[1]?.id) node.id = element[1].id;
-//     node.textContent = element[2];
-//     node.value = element[2];
-//   }
-//   node.onclick = element[3];
-//   node.oninput = element[3];
-//   return node;
-// }
 
 // FIND DIFF ON UPDATE
-function findDiff(prevVDOM, currentVDOM) {
-  for (let i = 0; i < currentVDOM.length; i++) {
-    if (JSON.stringify(prevVDOM[i]) !== JSON.stringify(currentVDOM[i])) {
-      if (currentVDOM[i][2] instanceof Array) {
-        const childAccessors = currentVDOM[i][2].map(convert);
+function findDiff(currentVDOM, wipVDOM) {
+  for (let i = 0; i < wipVDOM.length; i++) {
+    if (JSON.stringify(currentVDOM[i]) !== JSON.stringify(wipVDOM[i])) {
+      if (wipVDOM[i][2] instanceof Array) {
+        const childAccessors = wipVDOM[i][2].map(convert);
         accessors[i].replaceChildren(...childAccessors);
       } else {
-        accessors[i].value = currentVDOM[i][2];
-        accessors[i].textContent = currentVDOM[i][2];
+        accessors[i].value = wipVDOM[i][2];
+        accessors[i].textContent = wipVDOM[i][2];
       }
     }
   }
@@ -274,3 +376,28 @@ function keepFocus() {
 // RUN
 const root = document.querySelector("#root");
 render(App, root);
+
+// ACCESSORS + EFFECTS
+// const createDOMNodes = (effect) => {
+//   if (effect.children instanceof Array) {
+//     const children = effect.children.map((el) => {
+//       return createDOMNodes(el);
+//     });
+//     const accessor = convertToDOM(effect);
+//     return { ...effect, children, accessor };
+//   } else {
+//     const accessor = convertToDOM(effect);
+//     return { ...effect, accessor };
+//   }
+// };
+
+// const createDOMNodes = (effect) => {
+//   const accessor = convertToDOMNode(effect);
+//   if (effect.children instanceof Array) {
+//     const children = effect.children.map((el) => {
+//       return createDOMNodes(el);
+//     });
+//     return { ...effect, accessor, children };
+//   }
+//   return { ...effect, accessor };
+// };

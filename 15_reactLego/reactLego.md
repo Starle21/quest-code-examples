@@ -26,6 +26,19 @@ https://github.com/reactjs/react-basic
 9. memoization map - when memoizing a lot of nested items - caching algorithm needed - UI relatively stable - same position in the tree gets the same value every time
 10. algebraic effects - not having to pass every data dependency value through several levels of abstractions
 ...
+11. scheduler
+    - user pushes (dispatches) data (reactive, real-time, data producers), scheduler 'pulls' (data on demand, data consumers) from a queue of tasks - reduces pushes into batches for calculation and schedules dom update
+    - gives priority to tasks, priority queues
+    - handle async functions
+...
+12. no dsl templates - jsx, javascript
+13. server side rendering, static site generation
+14. one way data flow, following data dependencies, DAG
+15. reconciler
+16. event system (react-dom)
+...
+17. deterministic handling of side effects, runtime for side effects, one clear place where it is handled
+...
 1. create element effect
 - render phase
 2. create fiber for the effect in parent fiber, wip moved to child fiber

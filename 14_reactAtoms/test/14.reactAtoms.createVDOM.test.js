@@ -101,12 +101,14 @@ describe("effect", () => {
           domType: "button",
           props: null,
           children: "request remote data",
-          handler: () => {
-            makeNetworkRequest(({ x, y }) => {
-              setXCoord(x);
-              setYCoord(y);
-              console.log("local data updated from remote source");
-            });
+          handlers: {
+            onClick: () => {
+              makeNetworkRequest(({ x, y }) => {
+                setXCoord(x);
+                setYCoord(y);
+                console.log("local data updated from remote source");
+              });
+            },
           },
         },
         {
@@ -120,8 +122,10 @@ describe("effect", () => {
           domType: "input",
           props: { id: "x" },
           children: "",
-          handler: (e) => {
-            setXCoord(e.target.value);
+          handlers: {
+            onInput: (e) => {
+              setXCoord(e.target.value);
+            },
           },
         },
         {
@@ -135,8 +139,10 @@ describe("effect", () => {
           domType: "input",
           props: { id: "y" },
           children: "",
-          handler: (e) => {
-            setYCoord(e.target.value);
+          handlers: {
+            onInput: (e) => {
+              setYCoord(e.target.value);
+            },
           },
         },
         {

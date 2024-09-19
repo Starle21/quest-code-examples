@@ -36,7 +36,9 @@ const config = {
     compress: false,
     port: 3001,
   },
-  devtool: "cheap-module-source-map",
+  devtool: "source-map",
+
+  // devtool: "cheap-module-source-map",
 };
 
 module.exports = config;
