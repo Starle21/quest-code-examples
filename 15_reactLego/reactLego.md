@@ -162,3 +162,65 @@ renderWithHooks
         - component's fiber accessible through ReactCurrentOwner.current in component's scope 
         - memoized state on fiber updated
 reconcile children - unwrap jsx, create effects, create fibers for the first one
+
+
+
+----
+MOUNT
+- fiber root
+    - keeps reference to the dom node
+    - keeps reference to current fiber tree
+- host root (div)
+    - created before work loops in preparing fresh stack in perfromConcurrentWorkOnRoot
+    - return: null
+    - stateNode: points to fiber root
+    - set as WIP
+begin (creating fibers or reusing them - do I need to rerun this "stack"?)
+- if there is a current, compares props, context, flags if it can bail out of computing the fiber altogether
+- switch on type:
+- host root
+    - nothing to do on the fiber itself
+    - reconcile children
+        - checks if it is a react type element
+        - if current null - creates fiber
+            - marks it with Placement tag
+        - if there is current - clones fiber from the old one
+    - returns its child as wip
+- functional component
+    - call functional component to unwrap child effects
+    - flags it with PerformedWork
+    - reconcile children (newly unwraped elements)
+        - if current null - creates fiber
+            - marks it with Placement tag
+        - if there is current - clones fiber from the old one
+        - creates fiber for the fist one
+    - sets child as wip
+- host element
+    - nothing to do on the fiber itself
+    - reconcile children
+        - if current null - creates fiber
+            - marks it with Placement tag
+        - if there is current
+            - clones fiber
+                - create fiber
+
+- host text
+    - noop
+
+complete (creating dom nodes if applicable and connecting them)
+- host root
+    - noop, calculation phase finished
+- functional component
+    - noop
+- host element
+    - make dom node for it
+    - connect it with its children
+
+commit
+- recurse to the fiber that has deletion array
+- delete - process deletion array
+- place - if it has placement mark, do placement
+- update - if it has update mark, do update
+
+
+RERENDER

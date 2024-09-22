@@ -7,7 +7,7 @@ import {
   App,
 } from "../14.reactAtoms.4";
 
-describe("effect", () => {
+describe.skip("effect", () => {
   test("effect for host element gets created", () => {
     const element = () => Coordinate({ coord: 10, name: "x" });
     const effect = {

@@ -124,6 +124,7 @@ const Square = ({ x, y }) => {
     type: "svgNode",
     domType: "rect",
     props: { x, y, width: "30", height: "30" },
+    children: null,
   };
 };
 export const Coordinate = ({ coord, name }) => {
@@ -210,34 +211,258 @@ function render(Component, DOMRoot) {
   // RERENDER - dealing with create, update, delete
   else {
     // CALCULATION
+    console.log("---");
     currentVDOM = wipVDOM;
     wipVDOM = createVDOM(_Component, _currentRoot);
 
     console.log("current", currentVDOM);
     console.log("wip", wipVDOM);
+    console.log("---");
 
-    // find differences
-    // just calculation to gather changes to do
-    // performing side effects right away
-    // - iterate over wip dom - first layer, second layer in first child ...
-    // - element type the same and props the same - bail out, no mark
-    // - element the same, props changed - update mark
-    // - if domType doesn't match - delete and create mark
-    // - if element is extra in the new array - create mark
-    // - if element is missing in the new array, but there is one in the old - delete mark
+    diff([wipVDOM], [currentVDOM]);
+    console.log("---");
+    console.log("diffs", wipVDOM);
+    console.log("---");
 
     // EFFECT
-    // perform mutation effects
-    // process deletions of the old
-    // process creation - place under parent node
-    // process updates - change props
+    commitEffects([wipVDOM]);
+    console.log("---");
+    console.log("after commit", wipVDOM);
+    console.log("---");
   }
 
   keepFocus();
 }
 
+// RERENDER commit
+function commitDelete(child, parent) {
+  parent.removeChild(child);
+}
+
+function commitRoot(child, parent) {
+  console.log("commit root", child, parent);
+  appendToParent(child, parent);
+}
+
+function commitEffects(finishedTree) {
+  // console.log(finishedTree);
+  finishedTree.forEach((effect, index) => {
+    // console.log("---");
+    // console.log(effect);
+    if (effect.flag === "DELETECHILD") {
+      effect.deletions.forEach((child) => {
+        // console.log("commit delete!", effect);
+        // console.log("on:", child);
+        commitDelete(child.accessor, effect.accessor);
+      });
+      effect.deletions = null;
+      effect.flag = null;
+    }
+    if (effect.flag === "CREATE") {
+      // console.log("commit create!", effect);
+      // console.log("commit create!", effect.accessor);
+      // console.log("commit create!", effect.return);
+      commitRoot(effect.accessor, effect.return.accessor);
+      effect.flag = "UPDATE";
+    }
+    if (effect.flag === "UPDATE") {
+      // console.log("commit update!", effect);
+      commitUpdate(effect);
+      effect.flag = null;
+    }
+    if (effect.children) {
+      // console.log("down");
+      commitEffects(effect.children);
+    } else {
+      // console.log("up");
+    }
+  });
+}
+
+function commitUpdate(effect) {
+  switch (effect.type) {
+    case "component": {
+      return null;
+    }
+    case "htmlNode": {
+      console.log("commitUpdate", effect);
+      // populate props
+      effect.props &&
+        Object.keys(effect.props).forEach((prop) => {
+          effect.accessor[prop] = effect.props[prop];
+        });
+
+      effect.handlers &&
+        Object.keys(effect.handlers).forEach((handle) => {
+          const eventType = handle.toLocaleLowerCase().substring(2);
+          effect.accessor.addEventListener(eventType, effect.handlers[handle]);
+        });
+      effect.flag = null;
+
+      return;
+    }
+    case "svgNode": {
+      effect.props &&
+        Object.keys(effect.props).forEach((prop) => {
+          effect.accessor.setAttribute(prop, effect.props[prop]);
+        });
+      return;
+    }
+    case "textNode": {
+      console.log("commitUpdate", effect);
+      effect.props &&
+        Object.keys(effect.props).forEach((prop) => {
+          effect.accessor[prop] = effect.props[prop];
+        });
+      return;
+    }
+  }
+}
+
+// RERENDER diff
+function diff(newArray, oldArray) {
+  newArray.forEach((newEffect, index) => {
+    // console.log("---");
+    // console.log("old:", oldArray && oldArray[index]);
+    const oldEffect = oldArray && oldArray[index];
+    // console.log("newEffect", newEffect);
+    if (newEffect.children) {
+      // console.log("down");
+      reconcileChildren(newEffect.children, oldEffect.children, newEffect);
+      // console.log("children", newEffect.children);
+
+      // console.log("processed wip has children");
+      diff(newEffect.children, oldArray[index].children);
+    } else {
+      // console.log("up");
+    }
+  });
+}
+
+function deleteChild(childToDelete, parent) {
+  const deletions = parent.deletions;
+  if (deletions == null) {
+    parent.deletions = [childToDelete];
+    parent.flag = "DELETECHILD";
+  } else {
+    deletions.push(childToDelete);
+  }
+}
+
+function iterateOverSubtree(effectArray) {
+  for (const effect of effectArray) {
+    convertToDOMNode(effect);
+    console.log("subtree effect", effect);
+    console.log("subtree", effect.accessor, effect.return.accessor);
+    appendToParent(effect.accessor, effect.return.accessor);
+    if (effect.children) {
+      iterateOverSubtree(effect.children);
+    }
+  }
+}
+
+function convertToDOMNode(effect) {
+  switch (effect.type) {
+    case "component": {
+      effect.accessor = null;
+      return;
+    }
+    case "htmlNode": {
+      let node = document.createElement(effect.domType);
+      effect.accessor = node;
+      break;
+    }
+    case "svgNode": {
+      let node = document.createElementNS(
+        "http://www.w3.org/2000/svg",
+        effect.domType
+      );
+      effect.accessor = node;
+      break;
+    }
+    case "textNode": {
+      let node = document.createTextNode("");
+      console.dir("effect accessor", node);
+      effect.accessor = node;
+      effect.props &&
+        Object.keys(effect.props).forEach((prop) => {
+          effect.accessor[prop] = effect.props[prop];
+        });
+      console.dir("effect accessor", effect.accessor);
+      break;
+    }
+  }
+  if (effect.children) {
+    console.log("PROCESS SUBTREE!");
+    iterateOverSubtree(effect.children);
+  }
+}
+
+export function reconcileChildren(newChildren, oldChildren, newParent) {
+  let idx = 0;
+  // console.log("newChildren", newChildren);
+  // console.log("oldChildren", oldChildren);
+  for (; oldChildren && oldChildren[idx] && idx < newChildren.length; idx++) {
+    if (newChildren[idx].domType === oldChildren[idx].domType) {
+      // update
+      newChildren[idx].accessor = oldChildren[idx].accessor;
+      if (
+        JSON.stringify(newChildren[idx].props) !==
+        JSON.stringify(oldChildren[idx].props)
+      ) {
+        newChildren[idx].flag = "UPDATE";
+        // console.log("UPDATE!", newChildren[idx]);
+      }
+    } else {
+      // delete and create
+      deleteChild(oldChildren[idx], newParent);
+      convertToDOMNode(newChildren[idx]);
+      newChildren[idx].flag = "CREATE";
+      console.log(newChildren[idx]);
+    }
+  }
+  // console.log("end of old children", idx, oldChildren && oldChildren[idx]);
+  if (oldChildren && oldChildren[idx] && idx === newChildren.length) {
+    // new children array has less elements
+    for (; idx < oldChildren.length; idx++) {
+      console.log("delete remaining old children");
+      deleteChild(oldChildren[idx], newParent);
+    }
+    return;
+  }
+  if (oldChildren && oldChildren[idx] == undefined && newChildren[idx]) {
+    // new children array has more elements
+    for (; idx < newChildren.length; idx++) {
+      // create tag
+      // console.log("create new children");
+      newChildren[idx].flag = "CREATE";
+      // console.log("CREATE!");
+    }
+  }
+  return newChildren;
+}
+
+// MOUNT
+// COMMIT ROOT
+function commitToRoot(effect) {
+  let node = findAccessor(effect);
+  _currentRoot.appendChild(node);
+}
+
+function findAccessor(effect) {
+  if (effect.accessor) {
+    return effect.accessor;
+  }
+  let childEffect = effect.children.find((child) => child.accessor);
+  if (!childEffect) {
+    return findAccessor(effect.children);
+  } else {
+    return childEffect.accessor;
+  }
+}
+
 // CREATE ACCESSORS
-function createDOMNodes(effect, container) {
+function createDOMNodes(effect) {
   const effectArray = [effect];
   iterateOver(effectArray);
 }
@@ -245,16 +470,18 @@ function createDOMNodes(effect, container) {
 function iterateOver(effectArray) {
   for (const effect of effectArray) {
     processEffect(effect);
-  }
-  for (const effect of effectArray) {
     if (effect.children) {
       iterateOver(effect.children);
     }
   }
 }
 
+function appendToParent(child, parent) {
+  parent.appendChild(child);
+}
+
 function processEffect(effect) {
-  const accessor = convertToDOMNode(effect);
+  const accessor = convertToDOMNodeWithProps(effect);
   const parent = effect.return.accessor;
   effect.accessor = accessor;
 
@@ -277,7 +504,7 @@ function searchForHostParentAccessor(effect) {
   return parentContainer;
 }
 
-function convertToDOMNode(effect) {
+function convertToDOMNodeWithProps(effect) {
   switch (effect.type) {
     case "component": {
       return null;
@@ -318,42 +545,6 @@ function convertToDOMNode(effect) {
           node[prop] = effect.props[prop];
         });
       return node;
-    }
-  }
-}
-
-function appendToParent(child, parent) {
-  parent.appendChild(child);
-}
-
-function commitToRoot(effects) {
-  let node = findAccessor(effects);
-  _currentRoot.appendChild(node);
-}
-
-function findAccessor(effects) {
-  if (effects.accessor) {
-    return effects.accessor;
-  }
-  let childEffect = effects.children.find((child) => child.accessor);
-  if (!childEffect) {
-    return findAccessor(effects.children);
-  } else {
-    return childEffect.accessor;
-  }
-}
-
-// FIND DIFF ON UPDATE
-function findDiff(currentVDOM, wipVDOM) {
-  for (let i = 0; i < wipVDOM.length; i++) {
-    if (JSON.stringify(currentVDOM[i]) !== JSON.stringify(wipVDOM[i])) {
-      if (wipVDOM[i][2] instanceof Array) {
-        const childAccessors = wipVDOM[i][2].map(convert);
-        accessors[i].replaceChildren(...childAccessors);
-      } else {
-        accessors[i].value = wipVDOM[i][2];
-        accessors[i].textContent = wipVDOM[i][2];
-      }
     }
   }
 }
@@ -423,14 +614,15 @@ render(App, root);
 
 // ----------
 // data organization in memory
-// data organization for practical use
+// data organization for practical use - when i need to know index..
 
 // iterations over/walking through various data structures
-// for i++
-// foreach
-// for sth in sth
-// while
-// map
+// for i++ i
+// forEach i
+// for ... of sth x
+// for ... in sth x
+// while x
+// map i
 // iterator
 // generator
 
@@ -482,6 +674,7 @@ const effect = {
 };
 
 const effectArray = [effect];
+// iterateOver(effectArray);
 
 // ----
 // react - breadth first expansion of fiber tree
@@ -519,3 +712,56 @@ const effectArray = [effect];
 //   appendToParent(accessor, container);
 //   return { ...effect, accessor };
 // };
+
+// let nextTask;
+// while (nextTask) {
+//   nextTask = doSomething(nextTask);
+// }
+// if (!nextTask) {
+//   // nextTask = newTask;
+// }
+
+// iterate over new vdom
+// somehow take the comparable element from the old vdom
+// have to know the position of a node in the new vdom
+
+// function iterateOver(effectArray) {
+//   for (const effect of effectArray) {
+//     processEffect(effect);
+//     if (effect.children) {
+//       iterateOver(effect.children);
+//     }
+//   }
+// }
+
+// oldArray[index].children[index].children[index]
+// root
+// effect === oldArray[i1]
+// depth 1
+// effect === oldArray[i1].children[i2]
+// depth 2
+// effect === oldArray[i1].children[i2].children[i3]
+
+// tag
+// create unattached dom node
+
+// process tags in commit
+// delete
+// append - place
+//
+
+// EFFECT
+// perform mutation effects
+// process deletions of the old
+// process creation - place under parent node
+// process updates - change props
+
+// DIFF
+// just calculation to gather changes to do
+// - iterate over wip dom - first layer, second layer in first child ...
+// - grab comparable node from the old vdom
+// - element type the same and props the same - copy pointer to existing dom node
+// - element the same, props changed - update mark - copy pointer to existing node and update the props, mark update
+// - if domType doesn't match - delete array for old one and create node mark for the new one
+// - if element is extra in the new array - null in old vdom - create mark
+// - if element is missing in the new array, but there is one in the old - delete array for old one, delete mark
