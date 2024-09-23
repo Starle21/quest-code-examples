@@ -2,7 +2,7 @@ const webpack = require("webpack");
 const path = require("path");
 
 const config = {
-  entry: "./14_reactAtoms/14.reactAtoms.5.js",
+  entry: "./14_reactAtoms/14.reactAtoms.6.js",
   output: {
     path: path.resolve(__dirname, "14_reactAtoms"),
     filename: "bundle.js",
