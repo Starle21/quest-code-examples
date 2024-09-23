@@ -1,6 +1,7 @@
 // description of an result element {type:'', props:{}, children:[ Fce, Fce]}, handler: Fce}
 // BETTER CREATEVDOM, BETTER CONVERT, BETTER DIFF, BETTER HANDLING OF UPDATE AND DELETE
 // passing top root element, calling component fce inside create VDOM
+// dividing calculation from effect
 // ---
 let wipVDOM;
 let currentVDOM;

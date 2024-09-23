@@ -2,7 +2,7 @@ const webpack = require("webpack");
 const path = require("path");
 
 const config = {
-  entry: "./14_reactAtoms/14.reactAtoms.4.js",
+  entry: "./14_reactAtoms/14.reactAtoms.5.js",
   output: {
     path: path.resolve(__dirname, "14_reactAtoms"),
     filename: "bundle.js",
@@ -37,7 +37,6 @@ const config = {
     port: 3001,
   },
   devtool: "source-map",
-
   // devtool: "cheap-module-source-map",
 };
 
