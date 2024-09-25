@@ -1,6 +1,7 @@
-import { reconcileChildren } from "../14.reactAtoms.4";
+// NOT WORKING, NEED TO MOCK DOM NODES, NEED TO MOCK GLOBAL VARIABLES (CURRENTVDOM)
+import { diff } from "../14.reactAtoms.6";
 
-describe("diff", () => {
+describe.skip("diff", () => {
   test("new vdom has more children", () => {
     const oldVDOM = {
       type: "htmlNode",
@@ -91,6 +92,177 @@ describe("diff", () => {
     );
   });
 });
+
+describe("diff", () => {
+  test("puts deletion flags and creates deletion array", () => {
+    const oldTree = {
+      accessor: "acc",
+      type: "div",
+      domType: null,
+      props: null,
+      children: [
+        {
+          accessor: "acc",
+          type: "htmlNode",
+          domType: "input",
+          props: { value: "58" },
+          children: null,
+        },
+        {
+          accessor: "acc",
+          type: "htmlNode",
+          domType: "input",
+          props: { value: "19" },
+          children: null,
+        },
+      ],
+    };
+
+    const newTree = {
+      accessor: "acc",
+      type: "div",
+      domType: null,
+      props: null,
+      children: [
+        {
+          accessor: "acc",
+          type: "htmlNode",
+          domType: "input",
+          props: { value: "58" },
+          children: null,
+        },
+      ],
+    };
+    const processedTree = {
+      accessor: "acc",
+      type: "div",
+      domType: null,
+      props: null,
+      deletions: [
+        {
+          accessor: "acc",
+          type: "htmlNode",
+          domType: "input",
+          props: { value: "19" },
+          children: null,
+        },
+      ],
+      flag: "DELETECHILD",
+      children: [
+        {
+          accessor: "acc",
+          type: "htmlNode",
+          domType: "input",
+          props: { value: "58" },
+          children: null,
+        },
+      ],
+    };
+
+    diff([newTree], [oldTree], oldTree);
+    expect(newTree).toStrictEqual(processedTree);
+  });
+  test("tags new elements", () => {
+    const newTree = {
+      accessor: "acc",
+      type: "htmlNode",
+      domType: "div",
+      props: null,
+      children: [
+        {
+          accessor: "acc",
+          type: "htmlNode",
+          domType: "input",
+          props: { value: "58" },
+          children: null,
+          return: newTree,
+        },
+        {
+          accessor: "acc",
+          type: "htmlNode",
+          domType: "input",
+          props: { value: "19" },
+          children: null,
+          return: newTree,
+        },
+      ],
+    };
+
+    const oldTree = {
+      accessor: "acc",
+      type: "htmlNode",
+      domType: "div",
+      props: null,
+      children: [
+        {
+          accessor: "acc",
+          type: "htmlNode",
+          domType: "input",
+          props: { value: "58" },
+          children: null,
+          return: oldTree,
+        },
+      ],
+    };
+    const processedTree = {
+      accessor: "acc",
+      type: "htmlNode",
+      domType: "div",
+      props: null,
+      children: [
+        {
+          accessor: "acc",
+          type: "htmlNode",
+          domType: "input",
+          props: { value: "58" },
+          children: null,
+          return: processedTree,
+        },
+        {
+          accessor: "acc",
+          type: "htmlNode",
+          domType: "input",
+          props: { value: "19" },
+          children: null,
+          tag: "CREATE",
+          return: processedTree,
+        },
+      ],
+    };
+
+    diff([newTree], [oldTree], oldTree);
+    expect(newTree).toStrictEqual(processedTree);
+  });
+});
+
+// describe("diff", () => {
+//   test("puts deletion flags and creates deletion array", () => {
+//     const oldTree = {
+//       type: "component",
+//       domType: null,
+//       props: null,
+//       children: [
+//         {
+//           type: "htmlNode",
+//           domType: "div",
+//           props: null,
+//           children: [],
+//         },
+//         {
+//           type: "htmlNode",
+//           domType: "div",
+//           props: null,
+//           children: [
+//             {
+//               type: "htmlNode",
+//               domType: "input",
+//             },
+//           ],
+//         },
+//       ],
+//     };
+//   });
+// });
 
 // test("new vdom has more children", () => {
 //     const oldVDOM = {

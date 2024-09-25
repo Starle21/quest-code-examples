@@ -1,5 +1,6 @@
+import { AppTest } from "./test/14.reactAtoms.testComponents";
 // description of an result element {type: '', props: {}, children: [Fce, Fce]}, handlers: [Fce, Fce]}
-// CLEAR DUPLICATE CODE
+// WORKS FOR NESTED FUNCTION COMPONENTS
 // ---
 let wipVDOM;
 let currentVDOM;
@@ -7,7 +8,7 @@ let currentVDOM;
 // DATA - WRITE - HOOK
 let _values = [];
 let pointer = 0;
-function useState(initial) {
+export function useState(initial) {
   let state = _values[pointer] || initial;
   let _pointer = pointer;
   const setValue = (newValue) => {
@@ -129,36 +130,6 @@ export const Coordinate = ({ coord, name }) => {
     children: [() => Text({ nodeValue: `${name} coordinate is: ${coord}` })],
   };
 };
-// for testing
-export const SvgMultiple = ({ x, y }) => {
-  const element = x && y ? () => Square({ x, y }) : () => Text();
-  return {
-    type: "svgNode",
-    domType: "svg",
-    props: { xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 200 80" },
-    children: [element, element],
-  };
-};
-
-export const Deep = ({ coord, name }) => {
-  return {
-    type: "htmlNode",
-    domType: "div",
-    props: null,
-    children: [NestedInDeep],
-  };
-};
-const NestedInDeep = () => {
-  return {
-    type: "htmlNode",
-    domType: "div",
-    props: null,
-    children: [
-      () => Coordinate({ coord: 10, name: "zz" }),
-      () => Coordinate({ coord: 10, name: "zz" }),
-    ],
-  };
-};
 
 // TOP LEVEL API
 let _Component;
@@ -174,9 +145,11 @@ function render(Component, DOMRoot) {
     // convert elements into effects
     wipVDOM = createVDOM(_Component, _currentRoot);
     // convert effects into accessors - fibers (mounted stateful stack frame)
-    diff([wipVDOM], null);
+    diff(wipVDOM, null, currentVDOM);
+    // console.log("mount accessors", wipVDOM);
     // apply effects - changes with respect to current state (null)
-    commitEffects([wipVDOM]);
+    traverseAndCommitEffects(wipVDOM);
+    // console.log("after first mount", wipVDOM);
   }
   // RERENDER - dealing with create, update, delete
   else {
@@ -185,9 +158,12 @@ function render(Component, DOMRoot) {
     // convert elements into new effects, memoized functions which get the same args are not recalculated - incremental
     wipVDOM = createVDOM(_Component, _currentRoot);
     // diff new effects with old fibers, tag changes
-    diff([wipVDOM], [currentVDOM]);
+    diff(wipVDOM, currentVDOM, currentVDOM);
+    // console.log("new vdom", wipVDOM);
     // apply effects - changes with respect to current state (previous output)
-    commitEffects([wipVDOM]);
+    traverseAndCommitEffects(wipVDOM);
+    // console.log("after rerender", wipVDOM);
+    // console.log("--");
   }
 }
 
@@ -195,12 +171,19 @@ function render(Component, DOMRoot) {
 // args: component : fce, parent dom accessor
 // returns: effects : objs tree
 export const createVDOM = (component, parent) => {
+  if (!(component instanceof Function)) {
+    return null;
+  }
+  // jsx()
   let effect = component();
   effect.return = parent;
   if (effect.children instanceof Array) {
-    const children = effect.children.map((el) => {
-      return createVDOM(el, effect);
-    });
+    const children = effect.children
+      .map((el) => {
+        return createVDOM(el, effect);
+      })
+      .filter((child) => child != null);
+
     effect.children = children;
     effect.return = parent;
     return effect;
@@ -209,63 +192,71 @@ export const createVDOM = (component, parent) => {
 };
 
 // DIFF FOR CREATE, UPDATE, DELETE - NO OUTSIDE DIFFERENCE BETWEEN CREATE AND UDPATE
-function diff(newArray, oldArray) {
+export function diff(newEffect, oldEffect, currentVDOM) {
   // MOUNT - if current null - only create
   if (!currentVDOM) {
-    const effect = newArray[0];
-    createDOMNodes(effect);
-    effect.flag = "CREATE";
+    currentTopLevelParentAccessor = _currentRoot;
+    createDOMNodes(newEffect);
+    newEffect.flag = "CREATE";
   }
   // RERENDER - if current exists - create, update, delete
   else {
-    newArray.forEach((newEffect, index) => {
-      const oldEffect = oldArray && oldArray[index];
-      if (newEffect.children) {
-        reconcileChildren(newEffect.children, oldEffect.children, newEffect);
-        diff(newEffect.children, oldArray[index].children);
-      }
-    });
+    diffChildren(newEffect, oldEffect);
+  }
+}
+
+function diffChildren(newEffect, oldEffect) {
+  if (newEffect.children && oldEffect?.children) {
+    let idx = 0;
+    while (newEffect.children[idx] || oldEffect.children[idx]) {
+      reconcile(newEffect.children[idx], oldEffect.children[idx], newEffect);
+      idx++;
+    }
+  }
+  if (newEffect.children && !oldEffect?.children) {
+    let idx = 0;
+    while (newEffect.children[idx]) {
+      reconcile(newEffect.children[idx], null, newEffect);
+      idx++;
+    }
+  }
+  if (!newEffect.children && oldEffect?.children) {
+    let idx = 0;
+    while (oldEffect.children[idx]) {
+      reconcile(null, oldEffect.children[idx], newEffect);
+      idx++;
+    }
   }
 }
 
 // RECONCILE DIFFERENCES
+let currentTopLevelParentAccessor;
 // TODO: create tag - make sure, it only gets created on the top subroot node
-export function reconcileChildren(newChildren, oldChildren, newParent) {
+function reconcile(newEl, oldEl, newParent) {
   // TODO: what if child is a functional component and does not have accessor?
-  let idx = 0;
-  for (; oldChildren && oldChildren[idx] && idx < newChildren.length; idx++) {
-    if (newChildren[idx].domType === oldChildren[idx].domType) {
-      // update
-      newChildren[idx].accessor = oldChildren[idx].accessor;
-      if (
-        JSON.stringify(newChildren[idx].props) !==
-        JSON.stringify(oldChildren[idx].props)
-      ) {
-        newChildren[idx].flag = "UPDATE";
+
+  if (newEl && oldEl) {
+    if (newEl.domType === oldEl.domType) {
+      newEl.accessor = oldEl.accessor;
+      if (JSON.stringify(newEl.props) !== JSON.stringify(oldEl.props)) {
+        newEl.flag = "UPDATE";
       }
-      // TODO: what if props are the same and children are different?
+      diffChildren(newEl, oldEl);
     } else {
-      // delete and create
-      deleteOldChild(oldChildren[idx], newParent);
-      createDOMNodes(newChildren[idx]);
-      newChildren[idx].flag = "CREATE";
+      deleteOldChild(oldEl, newParent);
+      currentTopLevelParentAccessor = newParent.accessor ?? newParent.return;
+      createDOMNodes(newEl);
+      newEl.flag = "CREATE";
     }
   }
-  // new children array has less elements
-  if (oldChildren && oldChildren[idx] && idx === newChildren.length) {
-    for (; idx < oldChildren.length; idx++) {
-      deleteOldChild(oldChildren[idx], newParent);
-    }
-    return;
+  if (newEl && !oldEl) {
+    currentTopLevelParentAccessor = newParent.accessor;
+    createDOMNodes(newEl);
+    newEl.flag = "CREATE";
   }
-  // new children array has more elements
-  if (oldChildren && oldChildren[idx] == undefined && newChildren[idx]) {
-    for (; idx < newChildren.length; idx++) {
-      createDOMNodes(newChildren[idx]);
-      newChildren[idx].flag = "CREATE";
-    }
+  if (!newEl && oldEl) {
+    deleteOldChild(oldEl, newParent);
   }
-  return newChildren;
 }
 
 // DIFF - CREATE
@@ -280,14 +271,32 @@ function createAccessor(effect) {
   convertToDOMNode(effect);
   setInitialDOMProperties(effect);
 
-  // appendToParent
   // if parent null? if child null?
   const parentContainer = effect.return.accessor
     ? effect.return.accessor
     : searchForHostParentAccessor(effect);
 
-  if (parentContainer && effect.accessor && parentContainer !== _currentRoot)
+  if (
+    parentContainer &&
+    effect.accessor &&
+    parentContainer !== currentTopLevelParentAccessor
+  )
     appendToParent(effect.accessor, parentContainer);
+}
+
+function searchForHostParentAccessor(effect) {
+  // TODO: what if parent does not have accessor? - (now there can't be 2 functional component one after the other, but what if?)
+  const childEffect = effect;
+  const parent = effect.return;
+  if (parent === _currentRoot) {
+    return parent;
+  }
+  const parentContainer = parent.accessor;
+
+  if (!parentContainer) {
+    return searchForHostParentAccessor(parent);
+  }
+  return parentContainer;
 }
 
 function convertToDOMNode(effect) {
@@ -319,6 +328,7 @@ function convertToDOMNode(effect) {
 
 function setInitialDOMProperties(effect) {
   // TODO: filter out non dom properties
+
   switch (effect.type) {
     case "component": {
       return;
@@ -353,14 +363,6 @@ function setInitialDOMProperties(effect) {
   }
 }
 
-function searchForHostParentAccessor(effect) {
-  // TODO: what if parent does not have accessor? - (now there can't be 2 functional component one after the other, but what if?)
-  const childEffect = effect;
-  const parent = effect.return;
-  const parentContainer = parent.return;
-  return parentContainer;
-}
-
 function appendToParent(child, parent) {
   parent.appendChild(child);
 }
@@ -377,30 +379,35 @@ function deleteOldChild(childToDelete, parent) {
 }
 
 // COMMIT
-function commitEffects(finishedTree) {
-  finishedTree.forEach((effect, index) => {
-    if (effect.flag === "DELETECHILD") {
-      effect.deletions.forEach((child) => {
-        commitDelete(child.accessor, effect.accessor);
-      });
-      effect.deletions = null;
-      effect.flag = null;
-    }
-    if (effect.flag === "CREATE") {
-      if (effect.return === _currentRoot) {
-        commitRoot(effect, effect.return);
-      } else commitRoot(effect, effect.return.accessor);
-      effect.flag = null;
-    }
-    if (effect.flag === "UPDATE") {
-      commitUpdate(effect);
-      effect.flag = null;
-    }
-    // FIXME: && subtreeFlags
-    if (effect.children) {
-      commitEffects(effect.children);
-    }
-  });
+function traverseAndCommitEffects(finishedTree) {
+  commitEffect(finishedTree);
+  // FIXME: && subtreeFlags
+  if (finishedTree.children) {
+    finishedTree.children.forEach((child) => traverseAndCommitEffects(child));
+  }
+}
+
+function commitEffect(effect) {
+  if (effect.flag === "DELETECHILD") {
+    effect.deletions.forEach((child) => {
+      if (child.type === "component") {
+        return commitDelete(child.children[0].accessor, effect.accessor);
+      }
+      commitDelete(child.accessor, effect.accessor);
+    });
+    effect.deletions = null;
+    effect.flag = null;
+  }
+  if (effect.flag === "CREATE") {
+    if (effect.return === _currentRoot) {
+      commitRoot(effect, effect.return);
+    } else commitRoot(effect, effect.return.accessor);
+    effect.flag = null;
+  }
+  if (effect.flag === "UPDATE") {
+    commitUpdate(effect);
+    effect.flag = null;
+  }
 }
 
 function commitDelete(child, parent) {
@@ -475,3 +482,4 @@ function makeNetworkRequest(handler) {
 // RUN
 const root = document.querySelector("#root");
 render(App, root);
+// render(AppTest, root);
