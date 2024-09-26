@@ -85,7 +85,7 @@ const TextStatus = ({ nodeValue }) => {
 };
 
 // ---------------------------
-// TEST APP 2
+// TEST APP 2, partial
 const Container = ({ xCoord, yCoord, setXCoord, setYCoord }) => {
   return {
     type: "htmlNode",

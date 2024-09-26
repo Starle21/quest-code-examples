@@ -1,9 +1,9 @@
 import { AppTest } from "./test/14.reactAtoms.testComponents";
 // description of an result element {type: '', props: {}, children: [Fce, Fce]}, handlers: [Fce, Fce]}
-// DIFF IS THE SAME FOR MOUNT AND RERENDER
+// ROOT EFFECT, OLD EVENT LISTENERS REMOVAL ON UPDATE
 // ---
-let wipVDOM;
-let currentVDOM;
+let currentRoot;
+let wipRoot;
 
 // DATA - WRITE - HOOK
 let _values = [];
@@ -134,38 +134,44 @@ export const Coordinate = ({ coord, name }) => {
 // TOP LEVEL API
 let _Component;
 let _currentRoot;
-const rootEffect = {
-  type: "root",
-  accessor: _currentRoot,
-  children: ["AppComponent"],
-};
 function render(Component, DOMRoot) {
   // initialization
   if (Component) _Component = Component;
-  if (DOMRoot) _currentRoot = DOMRoot;
+  if (DOMRoot) {
+    _currentRoot = DOMRoot;
+  }
   pointer = 0;
 
   // MOUNT - dealing with create
-  if (!wipVDOM) {
+  if (!wipRoot) {
+    wipRoot = createRoot(_currentRoot);
     // convert elements into effects
-    wipVDOM = createVDOM(_Component, _currentRoot);
+    createVDOM(_Component, wipRoot);
     // convert effects into accessors - fibers (mounted stateful stack frame)
-    diff(wipVDOM, null);
-    console.log("diff", wipVDOM);
+    diff(wipRoot, null);
     // apply effects - changes with respect to current state (null)
-    traverseAndCommitEffects(wipVDOM);
+    traverseAndCommitEffects(wipRoot);
   }
   // RERENDER - dealing with create, update, delete
   else {
     // keep old fibers
-    currentVDOM = wipVDOM;
+    currentRoot = wipRoot;
+    wipRoot = createRoot(_currentRoot);
     // convert elements into new effects, memoized functions which get the same args are not recalculated - incremental
-    wipVDOM = createVDOM(_Component, _currentRoot);
+    createVDOM(_Component, wipRoot);
     // diff new effects with old fibers, tag changes
-    diff(wipVDOM, currentVDOM);
+    diff(wipRoot, currentRoot);
     // apply effects - changes with respect to current state (previous output)
-    traverseAndCommitEffects(wipVDOM);
+    traverseAndCommitEffects(wipRoot);
   }
+}
+
+function createRoot(hostAccessor) {
+  return {
+    type: "root",
+    accessor: hostAccessor,
+    children: null,
+  };
 }
 
 // GATHER COMPONENTS, EFFECTS TOGETHER
@@ -177,7 +183,6 @@ export const createVDOM = (component, parent) => {
   }
   // jsx()
   let effect = component();
-  effect.return = parent;
   if (effect.children instanceof Array) {
     const children = effect.children
       .map((el) => {
@@ -187,8 +192,12 @@ export const createVDOM = (component, parent) => {
 
     effect.children = children;
     effect.return = parent;
+    if (parent.type === "root") {
+      parent.children = [effect];
+    }
     return effect;
   }
+  effect.return = parent;
   return effect;
 };
 
@@ -223,10 +232,13 @@ function diff(newEffect, oldEffect) {
 let currentTopLevelParentAccessor;
 // TODO: create tag - make sure, it only gets created on the top subroot node
 function reconcile(newEl, oldEl, newParent) {
-  // TODO: what if child is a functional component and does not have accessor?
   if (newEl && oldEl) {
     if (newEl.domType === oldEl.domType) {
       newEl.accessor = oldEl.accessor;
+      if (oldEl.handlers !== newEl.handlers) {
+        newEl.removeListeners = oldEl.handlers;
+        newEl.flag = "UPDATE";
+      }
       if (JSON.stringify(newEl.props) !== JSON.stringify(oldEl.props)) {
         newEl.flag = "UPDATE";
       }
@@ -270,15 +282,7 @@ function appendChildToParent(effect) {
 }
 
 function searchForHostParentAccessor(effect) {
-  // above parent is root
-  // - effect.return <div>
   const parent = effect.return;
-  if (parent === _currentRoot) {
-    return parent;
-  }
-  // above parent is host
-  // - effect.return {}
-  // - effect.return.accessor
   const parentAccessor = parent.accessor;
 
   // above parent is component
@@ -376,6 +380,7 @@ function commitEffect(effect) {
   if (effect.flag === "DELETECHILD") {
     effect.deletions.forEach((child) => {
       if (child.type === "component") {
+        // relying on fce component having only one direct child
         return commitDelete(child.children[0].accessor, effect.accessor);
       }
       commitDelete(child.accessor, effect.accessor);
@@ -409,6 +414,16 @@ function commitUpdate(effect) {
       return null;
     }
     case "htmlNode": {
+      effect.removeListeners &&
+        Object.keys(effect.removeListeners).forEach((handle) => {
+          const eventType = handle.toLocaleLowerCase().substring(2);
+          effect.accessor.removeEventListener(
+            eventType,
+            effect.removeListeners[handle]
+          );
+        });
+      effect.removeListeners = null;
+
       effect.props &&
         Object.keys(effect.props).forEach((prop) => {
           effect.accessor[prop] = effect.props[prop];
@@ -444,6 +459,7 @@ function findAccessor(effect) {
   if (effect.accessor) {
     return effect.accessor;
   }
+  // assumes that component effect has only one direct child
   let childEffect = effect.children.find((child) => child.accessor);
   if (!childEffect) {
     return findAccessor(effect.children);
