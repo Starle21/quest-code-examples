@@ -1,56 +1,64 @@
-import { AppTest } from "./test/14.reactAtoms.testComponents";
+import { jsxAppTest } from "./test/14.reactAtoms.testComponents";
 // description of an result element {type: '', props: {}, children: [Fce, Fce]}, handlers: [Fce, Fce]}
-// ROOT EFFECT, OLD EVENT LISTENERS REMOVAL ON UPDATE
+// MEMOIZATION
 // ---
 let currentRoot;
 let wipRoot;
 let currentTopLevelParentAccessor;
+let currentEffect;
+let pointer;
 
 // DATA - WRITE - HOOK
-let _values = [];
-let pointer = 0;
 export function useState(initial) {
-  let state = _values[pointer] || initial;
+  currentEffect.state[pointer] = currentEffect.state[pointer] || initial;
+  const state = currentEffect.state[pointer];
+
   let _pointer = pointer;
   const setValue = (newValue) => {
-    _values[_pointer] = newValue;
+    currentEffect.state[_pointer] = newValue;
     render();
   };
+
   pointer++;
   return [state, setValue];
 }
 
 // ELEMENTS / COMPONENTS
-export const App = () => {
-  const [xCoord, setXCoord] = useState("");
-  const [yCoord, setYCoord] = useState("");
+const jsxApp = () => {
   return {
     type: "component",
     domType: null,
     props: null,
-    children: [() => Container({ xCoord, yCoord, setXCoord, setYCoord })],
+    children: null,
+    function: App,
   };
 };
 
-const Container = ({ xCoord, yCoord, setXCoord, setYCoord }) => {
+const App = () => {
+  const [xCoord, setXCoord] = useState("");
+  const [yCoord, setYCoord] = useState("");
+  return () => jsxContainer({ xCoord, yCoord, setXCoord, setYCoord });
+};
+
+const jsxContainer = ({ xCoord, yCoord, setXCoord, setYCoord }) => {
   return {
     type: "htmlNode",
     domType: "div",
     props: null,
     children: [
-      () => NetworkButton({ setXCoord, setYCoord }),
-      () => Label({ name: "x" }),
-      () => Input({ name: "x", coord: xCoord, setCoord: setXCoord }),
-      () => Label({ name: "y" }),
-      () => Input({ name: "y", coord: yCoord, setCoord: setYCoord }),
-      () => Svg({ x: xCoord, y: yCoord }),
-      () => Coordinate({ coord: xCoord, name: "x" }),
-      () => Coordinate({ coord: yCoord, name: "y" }),
+      () => jsxNetworkButton({ setXCoord, setYCoord }),
+      () => jsxLabel({ name: "x" }),
+      () => jsxInput({ name: "x", coord: xCoord, setCoord: setXCoord }),
+      () => jsxLabel({ name: "y" }),
+      () => jsxInput({ name: "y", coord: yCoord, setCoord: setYCoord }),
+      () => jsxSvg({ x: xCoord, y: yCoord }),
+      () => jsxCoordinate({ coord: xCoord, name: "x" }),
+      () => jsxCoordinate({ coord: yCoord, name: "y" }),
     ],
   };
 };
 
-const Text = ({ nodeValue }) => {
+const jsxText = ({ nodeValue }) => {
   return {
     type: "textNode",
     domType: "text",
@@ -59,12 +67,13 @@ const Text = ({ nodeValue }) => {
   };
 };
 
-const NetworkButton = ({ setXCoord, setYCoord }) => {
+// <button onClick={handler}>request remote data</button>
+const jsxNetworkButton = ({ setXCoord, setYCoord }) => {
   return {
     type: "htmlNode",
     domType: "button",
     props: null,
-    children: [() => Text({ nodeValue: "request remote data" })],
+    children: [() => jsxText({ nodeValue: "request remote data" })],
     handlers: {
       onClick: () => {
         makeNetworkRequest(({ x, y }) => {
@@ -76,15 +85,17 @@ const NetworkButton = ({ setXCoord, setYCoord }) => {
     },
   };
 };
-const Label = ({ name }) => {
+
+// <div>{name} coordinate:</div>
+const jsxLabel = ({ name }) => {
   return {
     type: "htmlNode",
     domType: "div",
     props: null,
-    children: [() => Text({ nodeValue: `${name} coordinate:` })],
+    children: [() => jsxText({ nodeValue: `${name} coordinate:` })],
   };
 };
-const Input = ({ name, coord, setCoord }) => {
+const jsxInput = ({ name, coord, setCoord }) => {
   return {
     type: "htmlNode",
     domType: "input",
@@ -97,8 +108,8 @@ const Input = ({ name, coord, setCoord }) => {
     },
   };
 };
-export const Svg = ({ x, y }) => {
-  const element = x && y ? () => Square({ x, y }) : () => Alert();
+export const jsxSvg = ({ x, y }) => {
+  const element = x && y ? () => jsxSquare({ x, y }) : () => jsxAlert();
   return {
     type: "svgNode",
     domType: "svg",
@@ -107,15 +118,15 @@ export const Svg = ({ x, y }) => {
   };
 };
 
-const Alert = () => {
+const jsxAlert = () => {
   return {
     type: "svgNode",
     domType: "text",
     props: { x: "0", y: "40", class: "small" },
-    children: [() => Text({ nodeValue: "Fill out all inputs!" })],
+    children: [() => jsxText({ nodeValue: "Fill out all inputs!" })],
   };
 };
-const Square = ({ x, y }) => {
+const jsxSquare = ({ x, y }) => {
   return {
     type: "svgNode",
     domType: "rect",
@@ -123,12 +134,12 @@ const Square = ({ x, y }) => {
     children: null,
   };
 };
-export const Coordinate = ({ coord, name }) => {
+export const jsxCoordinate = ({ coord, name }) => {
   return {
     type: "htmlNode",
     domType: "div",
     props: null,
-    children: [() => Text({ nodeValue: `${name} coordinate is: ${coord}` })],
+    children: [() => jsxText({ nodeValue: `${name} coordinate is: ${coord}` })],
   };
 };
 
@@ -141,17 +152,17 @@ function render(Component, DOMRoot) {
   if (DOMRoot) {
     _currentRoot = DOMRoot;
   }
-  pointer = 0;
 
   // MOUNT - dealing with create
   if (!wipRoot) {
     wipRoot = createRoot(_currentRoot);
     // convert elements into effects
-    createVDOM(_Component, wipRoot);
+    createEffects(_Component, wipRoot);
     // convert effects into accessors - fibers (mounted stateful stack frame)
     diff(wipRoot, null);
     // apply effects - changes with respect to current state (null)
     traverseAndCommitEffects(wipRoot);
+    console.log("wipRoot", wipRoot);
   }
   // RERENDER - dealing with create, update, delete
   else {
@@ -159,7 +170,7 @@ function render(Component, DOMRoot) {
     currentRoot = wipRoot;
     wipRoot = createRoot(_currentRoot);
     // convert elements into new effects, memoized functions which get the same args are not recalculated - incremental
-    createVDOM(_Component, wipRoot);
+    createEffects(_Component, wipRoot);
     // diff new effects with old fibers, tag changes
     diff(wipRoot, currentRoot);
     // apply effects - changes with respect to current state (previous output)
@@ -176,31 +187,48 @@ function createRoot(hostAccessor) {
 }
 
 // GATHER COMPONENTS, EFFECTS TOGETHER
-// args: component : fce, parent dom accessor
+
+// args: element : fce, parent dom effect
 // returns: effects : objs tree
-export const createVDOM = (component, parent) => {
-  if (!(component instanceof Function)) {
-    return null;
+function createEffects(element, parent) {
+  let effect;
+  // console.log(element);
+  // console.log(parent);
+  // console.log("---");
+  if (element instanceof Function) {
+    // jsx()
+    effect = element();
+    // fiber
+    effect.return = parent;
   }
-  // jsx()
-  let effect = component();
-  effect.return = parent;
+  if (effect.type === "component") {
+    effect.state = [];
+    pointer = 0;
+    console.log(effect);
+    currentEffect = effect;
+    // functional element
+    let jsxChild = effect.function();
+    // fiber
+    effect.return = parent;
+    effect.children = [jsxChild];
+  }
+  if (effect.children == null) {
+    // stop recursion
+    return effect;
+  }
+  // recurse down
   if (effect.children instanceof Array) {
     const children = effect.children
-      .map((el) => {
-        return createVDOM(el, effect);
-      })
+      .map((childElement) => createEffects(childElement, effect))
       .filter((child) => child != null);
-
+    // go up
     effect.children = children;
-    // effect.return = parent;
     if (parent.type === "root") {
       parent.children = [effect];
     }
     return effect;
   }
-  return effect;
-};
+}
 
 // DIFF FOR CREATE, UPDATE, DELETE - NO OUTSIDE DIFFERENCE BETWEEN CREATE AND UDPATE
 // MOUNT - if current null - only create
@@ -480,5 +508,5 @@ function makeNetworkRequest(handler) {
 
 // RUN
 const root = document.querySelector("#root");
-render(App, root);
-// render(AppTest, root);
+render(jsxApp, root);
+// render(jsxAppTest, root);

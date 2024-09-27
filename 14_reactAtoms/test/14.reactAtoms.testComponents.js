@@ -1,15 +1,20 @@
-import { useState } from "../14.reactAtoms.7";
+import { useState } from "../14.reactAtoms.8";
 
 // TEST APP 1
-export const AppTest = () => {
-  const [on, setOn] = useState(false);
+export const jsxAppTest = () => {
   return {
     type: "component",
     domType: null,
     props: { num: 1 },
-    children: [() => ContainerTest({ on, setOn })],
+    children: null,
+    function: AppTest,
   };
 };
+const AppTest = () => {
+  const [on, setOn] = useState(false);
+  return () => ContainerTest({ on, setOn });
+};
+
 const ContainerTest = ({ on, setOn }) => {
   return {
     type: "htmlNode",
@@ -19,18 +24,23 @@ const ContainerTest = ({ on, setOn }) => {
       () => OnButton({ on, setOn }),
       on ? () => StatusAndTitle() : "",
       on ? () => Status() : "",
-      () => TestComp(),
+      () => jsxTestComp({ test: "testComp" }),
     ],
   };
 };
 
-const TestComp = () => {
+const jsxTestComp = ({ test }) => {
   return {
     type: "component",
     domType: null,
-    props: { test: "testComp" },
-    children: [() => Status()],
+    props: { test },
+    children: null,
+    function: TestComp,
   };
+};
+
+const TestComp = () => {
+  return () => Status();
 };
 
 const OnButton = ({ on, setOn }) => {
