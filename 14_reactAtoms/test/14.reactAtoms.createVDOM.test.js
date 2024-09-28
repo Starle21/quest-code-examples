@@ -1,11 +1,11 @@
-import {
-  Coordinate,
-  Svg,
-  SvgMultiple,
-  createVDOM,
-  Deep,
-  App,
-} from "../14.reactAtoms.3";
+// import {
+//   Coordinate,
+//   Svg,
+//   SvgMultiple,
+//   createVDOM,
+//   Deep,
+//   App,
+// } from "../14.reactAtoms.3";
 
 describe.skip("effect", () => {
   test("effect for host element gets created", () => {

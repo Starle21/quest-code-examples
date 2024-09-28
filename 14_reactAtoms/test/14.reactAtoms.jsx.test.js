@@ -1,7 +1,7 @@
 // NOT WORKING, NEED TO MOCK DOM NODES, NEED TO MOCK GLOBAL VARIABLES (CURRENTVDOM)
-import { createEffects } from "../14.reactAtoms.8";
+// import { createEffects } from "../14.reactAtoms.8";
 
-describe("child effect", () => {
+describe.skip("child effect", () => {
   test("gets created from functional component", () => {
     const AppTrue = () => {
       return () => Container();

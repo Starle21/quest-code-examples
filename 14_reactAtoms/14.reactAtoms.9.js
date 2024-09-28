@@ -1,10 +1,18 @@
-import { jsxAppTest } from "./test/14.reactAtoms.testComponents";
+// import { jsxAppTest } from "./test/14.reactAtoms.testComponents";
+import {
+  rootFiber,
+  functionalFiber,
+  arrayFiber,
+} from "./test/14.reactAtoms.memoization";
 // description of an result element {type: '', props: {}, children: [Fce, Fce]}, handlers: [Fce, Fce]}
-// DISTINGUISHING between jsxFce and ComponentFce
-// USE STATE tries to read from its effect, but it is not memoized yet
+// MEMOIZE JSX AND COMPONENT FCES
+// STACK FRAME = FIBER
+// LINKED LIST
 // ---
 let currentRoot;
 let wipRoot;
+let _Component;
+let _currentRoot;
 let currentTopLevelParentAccessor;
 let currentEffect;
 let pointer;
@@ -24,13 +32,26 @@ export function useState(initial) {
   return [state, setValue];
 }
 
+const FiberRoot = {
+  accessor: _currentRoot,
+};
+
 // ELEMENTS / COMPONENTS
+const topmostFiber = {
+  accessor: _currentRoot,
+  alternate: null,
+  element: () => jsxApp(),
+  props: null,
+  type: "root",
+  return: null,
+  sibling: null,
+};
+
 const jsxApp = () => {
   return {
     type: "component",
     domType: null,
     props: null,
-    children: null,
     function: App,
   };
 };
@@ -46,7 +67,7 @@ const jsxContainer = ({ xCoord, yCoord, setXCoord, setYCoord }) => {
     type: "htmlNode",
     domType: "div",
     props: null,
-    children: [
+    element: [
       () => jsxNetworkButton({ setXCoord, setYCoord }),
       () => jsxLabel({ name: "x" }),
       () => jsxInput({ name: "x", coord: xCoord, setCoord: setXCoord }),
@@ -64,7 +85,7 @@ const jsxText = ({ nodeValue }) => {
     type: "textNode",
     domType: "text",
     props: { nodeValue },
-    children: null,
+    element: null,
   };
 };
 
@@ -74,7 +95,7 @@ const jsxNetworkButton = ({ setXCoord, setYCoord }) => {
     type: "htmlNode",
     domType: "button",
     props: null,
-    children: [() => jsxText({ nodeValue: "request remote data" })],
+    element: [() => jsxText({ nodeValue: "request remote data" })],
     handlers: {
       onClick: () => {
         makeNetworkRequest(({ x, y }) => {
@@ -93,7 +114,7 @@ const jsxLabel = ({ name }) => {
     type: "htmlNode",
     domType: "div",
     props: null,
-    children: [() => jsxText({ nodeValue: `${name} coordinate:` })],
+    element: [() => jsxText({ nodeValue: `${name} coordinate:` })],
   };
 };
 const jsxInput = ({ name, coord, setCoord }) => {
@@ -101,7 +122,7 @@ const jsxInput = ({ name, coord, setCoord }) => {
     type: "htmlNode",
     domType: "input",
     props: { id: name, value: coord },
-    children: null,
+    element: null,
     handlers: {
       onInput: (e) => {
         setCoord(e.target.value);
@@ -115,7 +136,7 @@ export const jsxSvg = ({ x, y }) => {
     type: "svgNode",
     domType: "svg",
     props: { xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 200 80" },
-    children: [element],
+    element: [element],
   };
 };
 
@@ -124,7 +145,7 @@ const jsxAlert = () => {
     type: "svgNode",
     domType: "text",
     props: { x: "0", y: "40", class: "small" },
-    children: [() => jsxText({ nodeValue: "Fill out all inputs!" })],
+    element: [() => jsxText({ nodeValue: "Fill out all inputs!" })],
   };
 };
 const jsxSquare = ({ x, y }) => {
@@ -132,7 +153,7 @@ const jsxSquare = ({ x, y }) => {
     type: "svgNode",
     domType: "rect",
     props: { x, y, width: "30", height: "30" },
-    children: null,
+    element: null,
   };
 };
 export const jsxCoordinate = ({ coord, name }) => {
@@ -140,13 +161,12 @@ export const jsxCoordinate = ({ coord, name }) => {
     type: "htmlNode",
     domType: "div",
     props: null,
-    children: [() => jsxText({ nodeValue: `${name} coordinate is: ${coord}` })],
+    element: [() => jsxText({ nodeValue: `${name} coordinate is: ${coord}` })],
   };
 };
 
 // TOP LEVEL API
-let _Component;
-let _currentRoot;
+
 function render(Component, DOMRoot) {
   // initialization
   if (Component) _Component = Component;
@@ -186,6 +206,255 @@ function createRoot(hostAccessor) {
     children: null,
   };
 }
+
+// MAIN LOOP
+// wip effect - root { element: jsx(), children: null } (there is always current root, created before, it never gets created it in the main loop)
+// wip effect - functional { function: App(), children: null }
+// wip effect - host { element: jsx(), children: null }
+
+let wip;
+function loop() {
+  let nextWip;
+  // calculation phase
+  while (wip) {
+    nextWip = goDown(wip);
+    if (nextWip === null) {
+      goUp(wip);
+    } else {
+      wip = nextWip;
+    }
+  }
+  console.log("out of loop");
+  console.log("start commit");
+  // effect/action phase
+}
+
+// BEGIN
+// goDown
+// in: { parent fiber }
+// out: { old child fiber } or { new child fiber } or null
+// reusing or creating new fibers (memoized effects) - storing state
+// reconciling children
+// tagging
+function goDown(wip) {
+  // console.log("wip", wip);
+  const current = wip.alternate;
+
+  // diff fiber
+  if (current !== null) {
+    // passed in props that match
+    // const oldProps = current.memoizedProps;
+    // const newProps = wip.pendingProps;
+    // no update
+    // bail
+    // copy over current pointers
+    wip.child = current.child;
+    return wip.child;
+  }
+  // get child effect
+  let childEffect;
+  if (
+    wip.type === "root" ||
+    wip.type === "htmlNode" ||
+    wip.type === "svgNode" ||
+    wip.type === "textNode"
+  ) {
+    if (wip.element === null) {
+      wip.child = null;
+      return null;
+    }
+    // run jsx()
+    if (wip.element instanceof Array) {
+      childEffect = wip.element.map((el) => el());
+    } else {
+      childEffect = wip.element();
+    }
+  }
+  if (wip.type === "component") {
+    wip.state = [];
+    pointer = 0;
+    currentEffect = wip;
+    // run Component()
+    const childJsx = wip.function();
+    if (childJsx === null) {
+      return null;
+    }
+    // run jsx()
+    childEffect = childJsx();
+  }
+
+  // reconcile child effect with the previous version
+  // old child effect exists
+  if (current === null) {
+    wip.child = reconcileChildFibers(childEffect, null, wip);
+  } else {
+    wip.child = reconcileChildFibers(childEffect, current.child, wip);
+  }
+  return wip.child;
+}
+
+function reconcileChildFibers(newEffect, oldFiber, returnFiber) {
+  if (newEffect instanceof Array) {
+    return reconcileChildArray(oldFiber, newEffect, returnFiber);
+  } else {
+    return reconcileSingleChild(oldFiber, newEffect, returnFiber);
+  }
+}
+
+function reconcileSingleChild(currentFiber, childEffect, returnFiber) {
+  const oldFiber = currentFiber;
+  if (oldFiber !== null) {
+    if (oldFiber.type === childEffect.type) {
+      // reuse existing child fiber
+    }
+  }
+  const newFiber = {
+    ...childEffect,
+    alternate: null,
+    return: returnFiber,
+    sibling: null,
+  };
+  return newFiber;
+}
+
+// placement flag
+// - on first fiber under root - on its child, when mounting
+// - when there is current, and delete and create happened, and its the top subroot fiber
+
+function reconcileChildArray(currentFiber, childEffect, returnFiber) {
+  let oldFiber = currentFiber;
+  let newChildFiber = null;
+  let previousNewChildFiber = null;
+  let newFirstChildFiber = null;
+  let idx = 0;
+
+  while (oldFiber !== null && idx < childEffect.length) {
+    // update - compare
+    // or delete and create
+    idx++;
+  }
+  if (oldFiber !== null && idx === childEffect.length) {
+    // delete remaining oldFibers
+  }
+  if (oldFiber === null) {
+    for (; idx < childEffect.length; idx++) {
+      // create rest of newFibers without comparing
+      newChildFiber = {
+        ...childEffect[idx],
+        return: returnFiber,
+        alternate: null,
+        sibling: null,
+      };
+      // there are siblings, connect them
+      if (previousNewChildFiber === null) {
+        // choose the first one to return
+        newFirstChildFiber = newChildFiber;
+      } else {
+        previousNewChildFiber.sibling = newChildFiber;
+      }
+      previousNewChildFiber = newChildFiber;
+    }
+  }
+  return newFirstChildFiber;
+}
+
+// COMPLETE
+// creating accessors for host fibers
+// appending into dom tree
+function goUp(completedWork) {
+  let next = null;
+  do {
+    let returnFiber = completedWork.return;
+    switch (completedWork.type) {
+      case "root": {
+        // completed whole tree - end complete phase
+        console.log("completed", completedWork);
+        break;
+      }
+      case "component": {
+        // noop
+        break;
+      }
+      case "htmlNode": {
+        let node = document.createElement(completedWork.domType);
+        completedWork.accessor = node;
+        setInitialDOMProperties(completedWork);
+        appendAllChildren(completedWork);
+        break;
+      }
+      case "svgNode": {
+        let node = document.createElementNS(
+          "http://www.w3.org/2000/svg",
+          completedWork.domType
+        );
+        completedWork.accessor = node;
+        setInitialDOMProperties(completedWork);
+        appendAllChildren(completedWork);
+
+        break;
+      }
+      case "textNode": {
+        let node = document.createTextNode("");
+        completedWork.accessor = node;
+        setInitialDOMProperties(completedWork);
+        break;
+      }
+    }
+
+    const siblingFiber = completedWork.sibling;
+    if (siblingFiber !== null) {
+      wip = siblingFiber;
+      return;
+    }
+
+    completedWork = returnFiber;
+    wip = completedWork;
+  } while (completedWork !== null);
+  console.log("root was reached");
+}
+
+function appendAllChildren(completedWork) {
+  let child = completedWork.child;
+
+  while (child !== null) {
+    if (
+      child.type === "htmlNode" ||
+      child.type === "textNode" ||
+      child.type === "svgNode"
+    ) {
+      completedWork.accessor.appendChild(child.accessor);
+    }
+    child = child.sibling;
+  }
+}
+
+// COMMIT
+
+// ---------------------------------------------------------------------------------------------
+
+// const resultRoot = goDown(rootFiber);
+// console.log("resultRoot", resultRoot);
+// --
+// const resultHost = goDown(functionalFiber);
+// console.log("resultHost", resultHost);
+// --
+// const resultArray = goDown(arrayFiber);
+// console.log("resultHost", resultArray);
+// --
+// const rootExplainerApp = goDown(topmostFiber);
+// console.log("rootExplainerApp", rootExplainerApp);
+// // --
+// const explainerApp = goDown(rootExplainerApp);
+// console.log("explainerApp", explainerApp);
+// // --
+// const div = goDown(explainerApp);
+// console.log("div", div);
+// --
+wip = topmostFiber;
+loop();
+console.log(topmostFiber);
+
+// ---------------------------------------------------------------------------------------------
 
 // GATHER COMPONENTS, EFFECTS TOGETHER
 // args: element : fce, parent dom effect
@@ -508,5 +777,5 @@ function makeNetworkRequest(handler) {
 
 // RUN
 const root = document.querySelector("#root");
-render(jsxApp, root);
+// render(jsxApp, root);
 // render(jsxAppTest, root);

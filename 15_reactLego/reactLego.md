@@ -224,3 +224,18 @@ commit
 
 
 RERENDER
+
+
+
+
+
+.......
+incremental
+- avoids redundant recomputation - memoized
+- call it repeatedly with new input, re-run subtrees selectively, memoize recursively
+
+reactive
+- dispatch and data flow is implicit and 1-way
+
+declarative
+- side-effects are auto-mounted and disposed
