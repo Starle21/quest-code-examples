@@ -14,18 +14,18 @@ let wipRoot;
 let _Component;
 let _currentRoot;
 let currentTopLevelParentAccessor;
-let currentEffect;
+let currentFiber;
 let pointer;
 let update;
 
 // DATA - WRITE - HOOK
 export function useState(initial) {
-  currentEffect.state[pointer] = currentEffect.state[pointer] || initial;
-  const state = currentEffect.state[pointer];
+  currentFiber.state[pointer] = currentFiber.state[pointer] || initial;
+  const state = currentFiber.state[pointer];
 
   let _pointer = pointer;
   const setValue = (newValue) => {
-    currentEffect.state[_pointer] = newValue;
+    currentFiber.state[_pointer] = newValue;
     render();
   };
 
@@ -105,7 +105,6 @@ const jsxNetworkButton = ({ setXCoord, setYCoord }) => {
   };
 };
 
-// <div>{name} coordinate:</div>
 const jsxLabel = ({ name }) => {
   return {
     type: "htmlNode",
@@ -183,7 +182,7 @@ function createFiberAndHostRoot(hostAccessor) {
   fiberRoot.current = hostRoot;
   hostRoot.accessor = fiberRoot;
 }
-function createWipRoot(element) {
+function createWipRoot(hostRoot, element) {
   const newWipHostRoot = {
     ...hostRoot,
     alternate: hostRoot,
@@ -200,31 +199,29 @@ function render(Component, DOMRoot) {
   if (DOMRoot) {
     _currentRoot = DOMRoot;
     createFiberAndHostRoot(DOMRoot);
-    console.log(fiberRoot);
   }
 
   // MOUNT - dealing with create
   if (!wipRoot) {
-    wipRoot = createWipRoot(_Component);
-    // convert elements into effects
-    createEffects(_Component, wipRoot);
-    // convert effects into accessors - fibers (mounted stateful stack frame)
-    diff(wipRoot, null);
-    // apply effects - changes with respect to current state (null)
+    // before loop
+    wipRoot = createWipRoot(hostRoot, _Component);
+    update = true;
+    wip = wipRoot;
+    // go down and up - reconcile, tag, create accessors
+    loop();
+    // commit - traverse through the whole tree, do the flag effects
+    console.log("commit start");
     traverseAndCommitEffects(wipRoot);
-    console.log("wipRoot", wipRoot);
+    console.log("mount wipRoot", wipRoot);
   }
   // RERENDER - dealing with create, update, delete
   else {
     // keep old fibers
     currentRoot = wipRoot;
-    wipRoot = createWipRoot();
-    // convert elements into new effects, memoized functions which get the same args are not recalculated - incremental
-    createEffects(_Component, wipRoot);
-    // diff new effects with old fibers, tag changes
-    diff(wipRoot, currentRoot);
-    // apply effects - changes with respect to current state (previous output)
-    traverseAndCommitEffects(wipRoot);
+    wipRoot = createWipRoot(currentRoot, _Component);
+    console.log("rerender wipRoot", wipRoot);
+
+    // traverseAndCommitEffects(wipRoot);
   }
 }
 
@@ -232,7 +229,6 @@ function render(Component, DOMRoot) {
 // wip effect - root { element: jsx(), children: null } (there is always current root, created before, it never gets created it in the main loop)
 // wip effect - functional { function: App(), children: null }
 // wip effect - host { element: jsx(), children: null }
-
 let wip;
 function loop() {
   let nextWip;
@@ -245,9 +241,6 @@ function loop() {
       wip = nextWip;
     }
   }
-  console.log("out of loop");
-  console.log("start commit");
-  // effect/action phase
 }
 
 // BEGIN
@@ -258,7 +251,6 @@ function loop() {
 // reconciling children
 // tagging
 function goDown(wip) {
-  // console.log("wip", wip);
   const current = wip.alternate;
 
   // diff fiber
@@ -300,7 +292,7 @@ function goDown(wip) {
   if (wip.type === "component") {
     wip.state = [];
     pointer = 0;
-    currentEffect = wip;
+    currentFiber = wip;
     // run Component()
     const childJsx = wip.function();
     if (childJsx === null) {
@@ -350,7 +342,6 @@ function reconcileSingleChild(currentFiber, childEffect, returnFiber, subroot) {
 }
 
 function placeSingleChild(newFiber, subroot) {
-  console.log("place", newFiber, subroot);
   if (subroot && newFiber.alternate === null) {
     newFiber.flag = "CREATE";
   }
@@ -403,7 +394,7 @@ function goUp(completedWork) {
     switch (completedWork.type) {
       case "root": {
         // completed whole tree - end complete phase
-        console.log("completed", completedWork);
+        console.log("goUp completed", completedWork);
         break;
       }
       case "component": {
@@ -450,7 +441,7 @@ function goUp(completedWork) {
     completedWork = returnFiber;
     wip = completedWork;
   } while (completedWork !== null);
-  console.log("root was reached");
+  console.log("goUp root was reached");
 }
 
 function appendAllChildren(completedWork) {
@@ -468,84 +459,7 @@ function appendAllChildren(completedWork) {
   }
 }
 
-// COMMIT
-
 // ---------------------------------------------------------------------------------------------
-
-// const resultRoot = goDown(rootFiber);
-// console.log("resultRoot", resultRoot);
-// --
-// const resultHost = goDown(functionalFiber);
-// console.log("resultHost", resultHost);
-// --
-// const resultArray = goDown(arrayFiber);
-// console.log("resultHost", resultArray);
-// --
-// const rootExplainerApp = goDown(topmostFiber);
-// console.log("rootExplainerApp", rootExplainerApp);
-// // --
-// const explainerApp = goDown(rootExplainerApp);
-// console.log("explainerApp", explainerApp);
-// // --
-// const div = goDown(explainerApp);
-// console.log("div", div);
-// --
-let testRoot = document.querySelector("#root");
-createFiberAndHostRoot(testRoot);
-wipRoot = createWipRoot(() => jsxAppTest());
-console.log(wipRoot);
-update = true;
-wip = wipRoot;
-loop();
-console.log(wipRoot);
-let commitChild;
-traverseAndCommitEffects(wipRoot);
-// testRoot.appendChild(wipRoot.child.child.accessor);
-
-// ---------------------------------------------------------------------------------------------
-
-// GATHER COMPONENTS, EFFECTS TOGETHER
-// args: element : fce, parent dom effect
-// returns: effects : objs tree
-function createEffects(element, parent) {
-  let effect;
-  // console.log(element);
-  // console.log(parent);
-  // console.log("---");
-  if (element instanceof Function) {
-    // jsx()
-    effect = element();
-    // fiber
-    effect.return = parent;
-  }
-  if (effect.type === "component") {
-    effect.state = [];
-    pointer = 0;
-    console.log(effect);
-    currentEffect = effect;
-    // functional element
-    let jsxChild = effect.function();
-    // fiber
-    effect.return = parent;
-    effect.children = [jsxChild];
-  }
-  if (effect.children == null) {
-    // stop recursion
-    return effect;
-  }
-  // recurse down
-  if (effect.children instanceof Array) {
-    const children = effect.children
-      .map((childElement) => createEffects(childElement, effect))
-      .filter((child) => child != null);
-    // go up
-    effect.children = children;
-    if (parent.type === "root") {
-      parent.children = [effect];
-    }
-    return effect;
-  }
-}
 
 // DIFF FOR CREATE, UPDATE, DELETE - NO OUTSIDE DIFFERENCE BETWEEN CREATE AND UDPATE
 // MOUNT - if current null - only create
@@ -601,27 +515,6 @@ function reconcile(newEl, oldEl, newParent) {
   }
   if (!newEl && oldEl) {
     deleteOldChild(oldEl, newParent);
-  }
-}
-
-// DIFF - CREATE
-function createDOMNodes(effect) {
-  createAccessor(effect);
-  if (effect.children) {
-    effect.children.forEach((childEffect) => createDOMNodes(childEffect));
-  }
-}
-
-function createAccessor(effect) {
-  convertToDOMNode(effect);
-  setInitialDOMProperties(effect);
-  appendChildToParent(effect);
-}
-
-function appendChildToParent(effect) {
-  const parentAccessor = searchForHostParentAccessor(effect);
-  if (effect.accessor && parentAccessor !== currentTopLevelParentAccessor) {
-    parentAccessor.appendChild(effect.accessor);
   }
 }
 
@@ -718,10 +611,10 @@ function deleteOldChild(childToDelete, parent) {
 // COMMIT
 
 function traverseAndCommitEffects(finishedTree) {
-  // TODO: && subtreeFlags
+  // TODO: add subtreeFlags
+  let commitChild = finishedTree.child;
   let parent;
   let next;
-  commitChild = finishedTree.child;
   // depth first recursion on linked list
   while (commitChild !== null) {
     next = commitEffect(commitChild);
@@ -740,11 +633,10 @@ function traverseAndCommitEffects(finishedTree) {
       } while (parent !== null);
     }
   }
-  console.log("reached back the top");
+  console.log("commit reached back the top");
 }
 
 function commitEffect(effect) {
-  console.log("commit", effect);
   if (effect.flag === "DELETECHILD") {
     effect.deletions.forEach((child) => {
       if (child.type === "component") {
@@ -855,5 +747,26 @@ function makeNetworkRequest(handler) {
 
 // RUN
 const root = document.querySelector("#root");
-// render(jsxApp, root);
+render(jsxApp, root);
 // render(jsxAppTest, root);
+
+// ---------------------------------------------------------------------------------------------
+// TESTS
+// const resultRoot = goDown(rootFiber);
+// console.log("resultRoot", resultRoot);
+// --
+// const resultHost = goDown(functionalFiber);
+// console.log("resultHost", resultHost);
+// --
+// const resultArray = goDown(arrayFiber);
+// console.log("resultHost", resultArray);
+// --
+// const rootExplainerApp = goDown(topmostFiber);
+// console.log("rootExplainerApp", rootExplainerApp);
+// // --
+// const explainerApp = goDown(rootExplainerApp);
+// console.log("explainerApp", explainerApp);
+// // --
+// const div = goDown(explainerApp);
+// console.log("div", div);
+// --
