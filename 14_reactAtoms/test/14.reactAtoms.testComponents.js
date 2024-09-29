@@ -1,4 +1,4 @@
-import { useState } from "../14.reactAtoms.9";
+import { useState } from "../14.reactAtoms.10";
 
 // TEST APP 1
 export const jsxAppTest = () => {
@@ -22,9 +22,9 @@ const ContainerTest = ({ on, setOn }) => {
     props: { num: 2 },
     element: [
       () => OnButton({ on, setOn }),
+      () => jsxTestComp({ test: "testComp" }),
       on ? () => StatusAndTitle() : "",
       on ? () => Status() : "",
-      // () => jsxTestComp({ test: "testComp" }),
     ],
   };
 };
@@ -82,7 +82,7 @@ const Status = () => {
     type: "htmlNode",
     domType: "div",
     props: { num: 3 },
-    element: [() => TextStatus({ nodeValue: "On!" })],
+    element: [() => TextStatus({ nodeValue: "Bye!" })],
   };
 };
 const TextStatus = ({ nodeValue }) => {

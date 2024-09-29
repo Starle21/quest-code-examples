@@ -8,7 +8,6 @@ import {
 // MEMOIZE JSX AND COMPONENT FCES
 // STACK FRAME = FIBER
 // LINKED LIST
-// MOUNT PHASE READY - both calculation and commit
 // ---
 let currentRoot;
 let wipRoot;
@@ -35,16 +34,6 @@ export function useState(initial) {
 }
 
 // ELEMENTS / COMPONENTS
-const topmostFiber = {
-  accessor: _currentRoot,
-  alternate: null,
-  element: () => jsxApp(),
-  props: null,
-  type: "root",
-  return: null,
-  sibling: null,
-};
-
 const jsxApp = () => {
   return {
     type: "component",
@@ -87,7 +76,6 @@ const jsxText = ({ nodeValue }) => {
   };
 };
 
-// <button onClick={handler}>request remote data</button>
 const jsxNetworkButton = ({ setXCoord, setYCoord }) => {
   return {
     type: "htmlNode",
@@ -127,7 +115,7 @@ const jsxInput = ({ name, coord, setCoord }) => {
     },
   };
 };
-export const jsxSvg = ({ x, y }) => {
+const jsxSvg = ({ x, y }) => {
   const element = x && y ? () => jsxSquare({ x, y }) : () => jsxAlert();
   return {
     type: "svgNode",
@@ -153,7 +141,7 @@ const jsxSquare = ({ x, y }) => {
     element: null,
   };
 };
-export const jsxCoordinate = ({ coord, name }) => {
+const jsxCoordinate = ({ coord, name }) => {
   return {
     type: "htmlNode",
     domType: "div",
@@ -162,7 +150,8 @@ export const jsxCoordinate = ({ coord, name }) => {
   };
 };
 
-// TOP LEVEL API
+// --------
+// CREATE ROOT
 const fiberRoot = {
   accessor: null,
   current: null,
@@ -194,6 +183,7 @@ function createWipRoot(hostRoot, element) {
 }
 
 // --------
+// TOP LEVEL API
 function render(Component, DOMRoot) {
   // initialization
   if (Component) _Component = Component;
@@ -450,17 +440,30 @@ function goUp(completedWork) {
 }
 
 function appendAllChildren(completedWork) {
-  let child = completedWork.child;
+  console.log("appending", completedWork);
+  let toAppend = completedWork.child;
 
-  while (child !== null) {
+  while (toAppend !== null) {
     if (
-      child.type === "htmlNode" ||
-      child.type === "textNode" ||
-      child.type === "svgNode"
+      toAppend.type === "htmlNode" ||
+      toAppend.type === "textNode" ||
+      toAppend.type === "svgNode"
     ) {
-      completedWork.accessor.appendChild(child.accessor);
+      completedWork.accessor.appendChild(toAppend.accessor);
+    } else if (toAppend.child !== null) {
+      toAppend = toAppend.child;
+      continue;
     }
-    child = child.sibling;
+    if (toAppend === completedWork) {
+      return;
+    }
+    while (toAppend.sibling === null) {
+      if (toAppend.return === null || toAppend.return === completedWork) {
+        return;
+      }
+      toAppend = toAppend.return;
+    }
+    toAppend = toAppend.sibling;
   }
 }
 
@@ -613,6 +616,7 @@ function deleteOldChild(childToDelete, parent) {
   }
 }
 
+// --------
 // COMMIT
 function traverseAndCommitEffects(finishedTree) {
   // TODO: add subtreeFlags
@@ -751,8 +755,8 @@ function makeNetworkRequest(handler) {
 
 // RUN
 const root = document.querySelector("#root");
-render(jsxApp, root);
-// render(jsxAppTest, root);
+// render(jsxApp, root);
+render(jsxAppTest, root);
 
 // ---------------------------------------------------------------------------------------------
 // TESTS
