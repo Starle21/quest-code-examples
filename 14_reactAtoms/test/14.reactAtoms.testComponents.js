@@ -1,4 +1,4 @@
-import { useState } from "../14.reactAtoms.8";
+import { useState } from "../14.reactAtoms.9";
 
 // TEST APP 1
 export const jsxAppTest = () => {
@@ -6,12 +6,12 @@ export const jsxAppTest = () => {
     type: "component",
     domType: null,
     props: { num: 1 },
-    children: null,
+    element: null,
     function: AppTest,
   };
 };
 const AppTest = () => {
-  const [on, setOn] = useState(false);
+  const [on, setOn] = useState(true);
   return () => ContainerTest({ on, setOn });
 };
 
@@ -20,11 +20,11 @@ const ContainerTest = ({ on, setOn }) => {
     type: "htmlNode",
     domType: "div",
     props: { num: 2 },
-    children: [
+    element: [
       () => OnButton({ on, setOn }),
       on ? () => StatusAndTitle() : "",
       on ? () => Status() : "",
-      () => jsxTestComp({ test: "testComp" }),
+      // () => jsxTestComp({ test: "testComp" }),
     ],
   };
 };
@@ -34,7 +34,7 @@ const jsxTestComp = ({ test }) => {
     type: "component",
     domType: null,
     props: { test },
-    children: null,
+    element: null,
     function: TestComp,
   };
 };
@@ -48,7 +48,7 @@ const OnButton = ({ on, setOn }) => {
     type: "htmlNode",
     domType: "button",
     props: { turnedOn: on },
-    children: [() => TextStatus({ nodeValue: `Toggle ${on ? "off" : "on"}` })],
+    element: [() => TextStatus({ nodeValue: `Toggle ${on ? "off" : "on"}` })],
     // FIXME: stale function issue - workaround
     // set prop value to the 'on' value
     // so it get rerendered on every change
@@ -65,7 +65,7 @@ const StatusAndTitle = () => {
     type: "htmlNode",
     domType: "div",
     props: { num: 3 },
-    children: [() => Title()],
+    element: [() => Title()],
   };
 };
 const Title = () => {
@@ -73,7 +73,7 @@ const Title = () => {
     type: "htmlNode",
     domType: "h1",
     props: { class: "whatever", num: 4 },
-    children: [() => TextStatus({ nodeValue: "On!" })],
+    element: [() => TextStatus({ nodeValue: "On!" })],
   };
 };
 
@@ -82,7 +82,7 @@ const Status = () => {
     type: "htmlNode",
     domType: "div",
     props: { num: 3 },
-    children: [() => TextStatus({ nodeValue: "On!" })],
+    element: [() => TextStatus({ nodeValue: "On!" })],
   };
 };
 const TextStatus = ({ nodeValue }) => {
@@ -90,7 +90,7 @@ const TextStatus = ({ nodeValue }) => {
     type: "textNode",
     domType: "text",
     props: { nodeValue },
-    children: null,
+    element: null,
   };
 };
 
@@ -101,7 +101,7 @@ const Container = ({ xCoord, yCoord, setXCoord, setYCoord }) => {
     type: "htmlNode",
     domType: "div",
     props: null,
-    children: [() => SvgMultiple({ x: xCoord, y: yCoord }), () => Deep()],
+    element: [() => SvgMultiple({ x: xCoord, y: yCoord }), () => Deep()],
   };
 };
 export const SvgMultiple = ({ x, y }) => {
@@ -110,7 +110,7 @@ export const SvgMultiple = ({ x, y }) => {
     type: "svgNode",
     domType: "svg",
     props: { xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 200 80" },
-    children: [element, element],
+    element: [element, element],
   };
 };
 const Square = ({ x, y }) => {
@@ -118,7 +118,7 @@ const Square = ({ x, y }) => {
     type: "svgNode",
     domType: "rect",
     props: { x, y, width: "30", height: "30" },
-    children: null,
+    element: null,
   };
 };
 const Alert = () => {
@@ -126,7 +126,7 @@ const Alert = () => {
     type: "svgNode",
     domType: "text",
     props: { x: "0", y: "40", class: "small" },
-    children: [() => Text({ nodeValue: "Fill out all inputs!" })],
+    element: [() => Text({ nodeValue: "Fill out all inputs!" })],
   };
 };
 export const Deep = () => {
@@ -134,7 +134,7 @@ export const Deep = () => {
     type: "htmlNode",
     domType: "div",
     props: null,
-    children: [NestedInDeep],
+    element: [NestedInDeep],
   };
 };
 const NestedInDeep = () => {
@@ -142,7 +142,7 @@ const NestedInDeep = () => {
     type: "htmlNode",
     domType: "div",
     props: null,
-    children: [
+    element: [
       () => Coordinate({ coord: 10, name: "zz" }),
       () => Coordinate({ coord: 10, name: "zz" }),
     ],
@@ -153,7 +153,7 @@ const Coordinate = ({ coord, name }) => {
     type: "htmlNode",
     domType: "div",
     props: null,
-    children: [() => Text({ nodeValue: `${name} coordinate is: ${coord}` })],
+    element: [() => Text({ nodeValue: `${name} coordinate is: ${coord}` })],
   };
 };
 const Text = ({ nodeValue }) => {
@@ -161,6 +161,6 @@ const Text = ({ nodeValue }) => {
     type: "textNode",
     domType: "text",
     props: { nodeValue },
-    children: null,
+    element: null,
   };
 };
