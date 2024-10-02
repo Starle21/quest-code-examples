@@ -22,8 +22,11 @@ const ContainerTest = ({ on, setOn }) => {
     props: { num: 2 },
     element: [
       () => OnButton({ on, setOn }),
+      // Bye
       () => jsxTestComp({ test: "testComp" }),
+      // h1 -> On
       on ? () => StatusAndTitle() : "",
+      // Bye
       on ? () => Status() : "",
     ],
   };
@@ -48,7 +51,7 @@ const OnButton = ({ on, setOn }) => {
     type: "htmlNode",
     domType: "button",
     props: { turnedOn: on },
-    element: [() => TextStatus({ nodeValue: `Toggle ${on ? "off" : "on"}` })],
+    element: () => TextStatus({ nodeValue: `Toggle ${on ? "off" : "on"}` }),
     // FIXME: stale function issue - workaround
     // set prop value to the 'on' value
     // so it get rerendered on every change
@@ -65,7 +68,7 @@ const StatusAndTitle = () => {
     type: "htmlNode",
     domType: "div",
     props: { num: 3 },
-    element: [() => Title()],
+    element: () => Title(),
   };
 };
 const Title = () => {
@@ -73,7 +76,7 @@ const Title = () => {
     type: "htmlNode",
     domType: "h1",
     props: { class: "whatever", num: 4 },
-    element: [() => TextStatus({ nodeValue: "On!" })],
+    element: () => TextStatus({ nodeValue: "On!" }),
   };
 };
 
@@ -82,7 +85,7 @@ const Status = () => {
     type: "htmlNode",
     domType: "div",
     props: { num: 3 },
-    element: [() => TextStatus({ nodeValue: "Bye!" })],
+    element: () => TextStatus({ nodeValue: "Bye!" }),
   };
 };
 const TextStatus = ({ nodeValue }) => {

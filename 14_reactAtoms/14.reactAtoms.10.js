@@ -20,17 +20,36 @@ let update;
 
 // DATA - WRITE - HOOK
 export function useState(initial) {
-  currentFiber.state[pointer] = currentFiber.state[pointer] || initial;
-  const state = currentFiber.state[pointer];
+  console.log("hook", currentFiber.hook.state[pointer]);
 
-  let _pointer = pointer;
-  const setValue = (newValue) => {
-    currentFiber.state[_pointer] = newValue;
-    render();
+  if (currentFiber.hook.state[pointer] == undefined) {
+    currentFiber.hook.state[pointer] = initial;
+  }
+
+  const state = currentFiber.hook.state[pointer];
+  currentFiber.hook.queue[pointer] = state;
+
+  const dispatch = (fiber, pointer) => {
+    return (newState) => {
+      console.log("set new value", newState);
+      fiber.hook.queue[pointer] = newState;
+      markUpdateFromFiberToRoot(fiber);
+      render();
+    };
   };
+  const setState = dispatch(currentFiber, pointer);
 
   pointer++;
-  return [state, setValue];
+  return [state, setState];
+}
+
+function markUpdateFromFiberToRoot(sourceFiber) {
+  sourceFiber.update = true;
+  parent = sourceFiber.return;
+  do {
+    parent.childUpdate = true;
+    parent = parent.return;
+  } while (parent && parent.type !== root);
 }
 
 // ELEMENTS / COMPONENTS
@@ -38,7 +57,7 @@ const jsxApp = () => {
   return {
     type: "component",
     domType: null,
-    props: null,
+    props: {},
     function: App,
   };
 };
@@ -53,7 +72,7 @@ const jsxContainer = ({ xCoord, yCoord, setXCoord, setYCoord }) => {
   return {
     type: "htmlNode",
     domType: "div",
-    props: null,
+    props: {},
     element: [
       () => jsxNetworkButton({ setXCoord, setYCoord }),
       () => jsxLabel({ name: "x" }),
@@ -80,8 +99,8 @@ const jsxNetworkButton = ({ setXCoord, setYCoord }) => {
   return {
     type: "htmlNode",
     domType: "button",
-    props: null,
-    element: [() => jsxText({ nodeValue: "request remote data" })],
+    props: {},
+    element: () => jsxText({ nodeValue: "request remote data" }),
     handlers: {
       onClick: () => {
         makeNetworkRequest(({ x, y }) => {
@@ -98,8 +117,8 @@ const jsxLabel = ({ name }) => {
   return {
     type: "htmlNode",
     domType: "div",
-    props: null,
-    element: [() => jsxText({ nodeValue: `${name} coordinate:` })],
+    props: {},
+    element: () => jsxText({ nodeValue: `${name} coordinate:` }),
   };
 };
 const jsxInput = ({ name, coord, setCoord }) => {
@@ -121,7 +140,7 @@ const jsxSvg = ({ x, y }) => {
     type: "svgNode",
     domType: "svg",
     props: { xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 200 80" },
-    element: [element],
+    element,
   };
 };
 
@@ -130,7 +149,7 @@ const jsxAlert = () => {
     type: "svgNode",
     domType: "text",
     props: { x: "0", y: "40", class: "small" },
-    element: [() => jsxText({ nodeValue: "Fill out all inputs!" })],
+    element: () => jsxText({ nodeValue: "Fill out all inputs!" }),
   };
 };
 const jsxSquare = ({ x, y }) => {
@@ -145,8 +164,8 @@ const jsxCoordinate = ({ coord, name }) => {
   return {
     type: "htmlNode",
     domType: "div",
-    props: null,
-    element: [() => jsxText({ nodeValue: `${name} coordinate is: ${coord}` })],
+    props: {},
+    element: () => jsxText({ nodeValue: `${name} coordinate is: ${coord}` }),
   };
 };
 
@@ -166,19 +185,21 @@ const hostRoot = {
   return: null,
   sibling: null,
   type: "root",
+  update: false,
+  childUpdate: false,
 };
 function createFiberAndHostRoot(hostAccessor) {
   fiberRoot.accessor = hostAccessor;
   fiberRoot.current = hostRoot;
   hostRoot.accessor = fiberRoot;
 }
-function createWipRoot(hostRoot, element) {
+function createWipRoot(root, element) {
   const newWipHostRoot = {
-    ...hostRoot,
-    alternate: hostRoot,
+    ...root,
+    alternate: root,
     element,
   };
-  hostRoot.alternate = newWipHostRoot;
+  root.alternate = newWipHostRoot;
   return newWipHostRoot;
 }
 
@@ -195,28 +216,35 @@ function render(Component, DOMRoot) {
   // MOUNT - dealing with create
   if (!wipRoot) {
     // before loop
+    hostRoot.update = true;
     wipRoot = createWipRoot(hostRoot, _Component);
-    update = true;
+    console.log("wipRoot", wipRoot);
     wip = wipRoot;
     // go down and up - reconcile, tag, create accessors
     loop();
     // commit - traverse through the whole tree, do the flag effects
-    console.log("commit start");
+    console.log("mount before commit wipRoot", wipRoot);
     traverseAndCommitEffects(wipRoot);
-    console.log("mount wipRoot", wipRoot);
-    update = false;
     fiberRoot.current = wipRoot;
+    // hostRoot.update = false;
+    wipRoot.update = false;
+    console.log("mount end fiberRoot", fiberRoot);
   }
   // RERENDER - dealing with create, update, delete
   else {
     // before loop
     currentRoot = wipRoot;
     wipRoot = createWipRoot(currentRoot, _Component);
-    update = true;
+    // update = true;
     wip = wipRoot;
-    console.log("rerender wipRoot", wipRoot);
+    loop();
+    console.log("rerender before commit wipRoot", wipRoot);
+    // if (currentRoot && wip.props.nodeValue === "Bye!") throw new Error("stop");
 
     // traverseAndCommitEffects(wipRoot);
+    // fiberRoot.current = wipRoot;
+    // wipRoot.childUpdate = false;
+    // console.log("rerender end fiberRoot", fiberRoot);
   }
 }
 
@@ -246,21 +274,43 @@ function loop() {
 // reconciling children
 // tagging
 function goDown(wip) {
+  console.warn("wip", wip);
   const current = wip.alternate;
-
   // diff fiber
   if (current !== null) {
     // passed in props that match
-    // const oldProps = current.memoizedProps;
-    // const newProps = wip.pendingProps;
-    if (update === false) {
-      // no update
-      // bail
-      // copy over current pointers
-      wip.child = current.child;
-      return wip.child;
+    const oldProps = current.props;
+    const newProps = wip.props;
+    console.log("equal props?", oldProps === newProps);
+
+    if (newProps === oldProps) {
+      // if there is no update on this fiber
+      // no recalculation
+      if (current.update === false) {
+        // check if there are updates scheduled for children
+        if (wip.childUpdate === false) {
+          // bail from the whole subtree
+          console.log("bail out from begin for the whole subtree");
+          return null;
+        } else {
+          // copy over current pointers into new wip child fiber
+          // child has scheduled updates, go to it
+          const clonedCurrentChildFiber = {
+            ...current.child,
+            alternate: current.child,
+            return: wip,
+          };
+          current.child.alternate = clonedCurrentChildFiber;
+          wip.child = clonedCurrentChildFiber;
+          console.log("child fiber needs to be recalculated", wip);
+          return wip.child;
+        }
+      }
+      console.log("this fiber needs to be recalculated");
     }
   }
+  // reset update
+  wip.update = false;
   // get child effect
   let childEffect;
   if (
@@ -285,9 +335,12 @@ function goDown(wip) {
     }
   }
   if (wip.type === "component") {
-    wip.state = [];
-    pointer = 0;
     currentFiber = wip;
+    pointer = 0;
+    wip.hook = { state: [], queue: [] };
+    if (current !== null && current.hook != null) {
+      wip.hook.state = current.hook.queue;
+    }
     // run Component()
     const childJsx = wip.function();
     if (childJsx === null) {
@@ -295,10 +348,12 @@ function goDown(wip) {
     }
     // run jsx()
     childEffect = childJsx();
+    currentFiber = null;
+    console.log("childEffect", childEffect);
   }
 
   // reconcile child effect with the previous version
-  // old child effect exists
+  // old child fiber exists
   if (current === null) {
     // no CREATE flags when it is just a child of subroot
     wip.child = reconcileChildFibers(childEffect, null, wip, false);
@@ -318,31 +373,58 @@ function reconcileChildFibers(newEffect, oldFiber, returnFiber, subroot) {
 }
 
 function reconcileSingleChild(currentFiber, childEffect, returnFiber, subroot) {
+  console.log("reconcile single", childEffect);
   const oldFiber = currentFiber;
   if (oldFiber !== null) {
-    if (oldFiber.type === childEffect.type) {
-      // update - reuse existing child fiber
+    if (
+      oldFiber.type === childEffect.type &&
+      oldFiber.domType === childEffect.domType
+    ) {
+      // delete remaining children - check for currentFiber.sibling
+      deleteOldChildren(oldFiber.sibling, returnFiber);
+      const updatedFiber = {
+        ...childEffect,
+        type: currentFiber.type,
+        domType: currentFiber.domType,
+        accessor: currentFiber.accessor,
+        alternate: currentFiber,
+        child: currentFiber.child,
+        sibling: null,
+        return: returnFiber,
+        hook: currentFiber.hook,
+        deletions: currentFiber.deletions,
+        update: currentFiber.update,
+        childUpdate: currentFiber.childUpdate,
+      };
+      console.log("reconcile single", currentFiber.props);
+      console.log("reconcile single", updatedFiber.props);
+      console.log(
+        "reconcile single",
+        updatedFiber.props === currentFiber.props
+      );
+      currentFiber.alternate = updatedFiber;
+      placeChild(updatedFiber, subroot);
+
+      return updatedFiber;
     } else {
-      // delete and create
+      // didn't match, so delete and create below
+      deleteOldChildren(child, returnFiber);
     }
   }
-  const newFiber = {
-    ...childEffect,
-    alternate: null,
-    return: returnFiber,
-    sibling: null,
-  };
-  placeSingleChild(newFiber, subroot);
+  // create new fiber, there is no old fiber
+  const newFiber = createNewFiber(childEffect, returnFiber);
+  placeChild(newFiber, subroot);
   return newFiber;
 }
 
-function placeSingleChild(newFiber, subroot) {
+function placeChild(newFiber, subroot) {
   if (subroot && newFiber.alternate === null) {
     newFiber.flag = "CREATE";
   }
 }
 
 function reconcileChildArray(currentFiber, childEffect, returnFiber, subroot) {
+  console.log("reconcile array", childEffect);
   let oldFiber = currentFiber;
   let newChildFiber = null;
   let previousNewChildFiber = null;
@@ -351,24 +433,54 @@ function reconcileChildArray(currentFiber, childEffect, returnFiber, subroot) {
 
   while (oldFiber !== null && idx < childEffect.length) {
     // update - compare
-    // or delete and create
-    idx++;
-  }
-  if (oldFiber !== null && idx === childEffect.length) {
-    // delete remaining oldFibers
-  }
-  if (oldFiber === null) {
-    for (; idx < childEffect.length; idx++) {
-      // create rest of newFibers without comparing
+    if (
+      oldFiber.type === childEffect[idx].type &&
+      oldFiber.domType === childEffect[idx].domType
+    ) {
+      // reuse existing fiber fields
       newChildFiber = {
         ...childEffect[idx],
+        alternate: oldFiber,
+        accessor: oldFiber.accessor,
+        child: oldFiber.child,
+        domType: oldFiber.domType,
         return: returnFiber,
-        alternate: null,
         sibling: null,
+        hook: oldFiber.hook,
+        type: oldFiber.type,
+        deletions: oldFiber.deletions,
+        update: currentFiber.update,
+        childUpdate: currentFiber.childUpdate,
       };
-      // there are siblings, connect them
-      if (previousNewChildFiber === null) {
-        // choose the first one to return
+      oldFiber.alternate = newChildFiber;
+      placeChild(newChildFiber, subroot);
+    } else {
+      // or delete and create
+      deleteOldChild(oldFiber, returnFiber);
+      newChildFiber = createNewFiber(childEffect[idx], returnFiber);
+      oldFiber.alternate = newChildFiber;
+      placeChild(newChildFiber, subroot);
+    }
+    if (newFirstChildFiber === null) {
+      newFirstChildFiber = newChildFiber;
+    } else {
+      previousNewChildFiber.sibling = newChildFiber;
+    }
+    previousNewChildFiber = newChildFiber;
+    oldFiber = oldFiber.sibling;
+    idx++;
+  }
+  // delete rest of old fibers
+  if (oldFiber !== null && idx === childEffect.length) {
+    deleteOldChildren(oldFiber, returnFiber);
+    return newFirstChildFiber;
+  }
+  // create new fibers
+  if (oldFiber === null) {
+    for (; idx < childEffect.length; idx++) {
+      newChildFiber = createNewFiber(childEffect[idx], returnFiber);
+      placeChild(newChildFiber, subroot);
+      if (newFirstChildFiber === null) {
         newFirstChildFiber = newChildFiber;
       } else {
         previousNewChildFiber.sibling = newChildFiber;
@@ -379,13 +491,30 @@ function reconcileChildArray(currentFiber, childEffect, returnFiber, subroot) {
   return newFirstChildFiber;
 }
 
+function createNewFiber(effect, parentFiber) {
+  return {
+    ...effect,
+    return: parentFiber,
+    alternate: null,
+    sibling: null,
+    child: null,
+    deletions: null,
+    accessor: null,
+    update: false,
+    childUpdate: false,
+  };
+}
+
 // COMPLETE
 // creating accessors for host fibers
 // appending into dom tree
 function goUp(completedWork) {
   let next = null;
   do {
+    console.log("complete", completedWork);
+    let current = completedWork.alternate;
     let returnFiber = completedWork.return;
+
     switch (completedWork.type) {
       case "root": {
         // completed whole tree - end complete phase
@@ -398,26 +527,52 @@ function goUp(completedWork) {
       }
       case "htmlNode": {
         // if oldProps !== newProps -> FLAG UPDATE
-        let node = document.createElement(completedWork.domType);
-        completedWork.accessor = node;
-        setInitialDOMProperties(completedWork);
-        appendAllChildren(completedWork);
+        if (current !== null && completedWork.accessor != null) {
+          console.log("props old new", current.props, completedWork.props);
+          console.log("equal", current.props === completedWork.props);
+          if (
+            JSON.stringify(current.props) ===
+            JSON.stringify(completedWork.props)
+          ) {
+            break;
+          }
+          completedWork.flag = "UPDATE";
+        } else {
+          let node = document.createElement(completedWork.domType);
+          completedWork.accessor = node;
+          setInitialDOMProperties(completedWork);
+          appendAllChildren(completedWork);
+        }
         break;
       }
       case "svgNode": {
-        let node = document.createElementNS(
-          "http://www.w3.org/2000/svg",
-          completedWork.domType
-        );
-        completedWork.accessor = node;
-        setInitialDOMProperties(completedWork);
-        appendAllChildren(completedWork);
+        if (current !== null && completedWork.accessor != null) {
+          if (
+            JSON.stringify(current.props) ===
+            JSON.stringify(completedWork.props)
+          ) {
+            break;
+          }
+          completedWork.flag = "UPDATE";
+        } else {
+          let node = document.createElementNS(
+            "http://www.w3.org/2000/svg",
+            completedWork.domType
+          );
+          completedWork.accessor = node;
+          setInitialDOMProperties(completedWork);
+          appendAllChildren(completedWork);
+        }
 
         break;
       }
       case "textNode": {
-        if (completedWork.alternate !== null) {
-          // if oldText !== newText -> flag UPDATE
+        if (current !== null && completedWork.accessor != null) {
+          if (current.props.nodeValue === completedWork.props.nodeValue) {
+            break;
+          }
+
+          completedWork.flag = "UPDATE";
         } else {
           let node = document.createTextNode("");
           completedWork.accessor = node;
@@ -434,15 +589,14 @@ function goUp(completedWork) {
     }
 
     completedWork = returnFiber;
+
     wip = completedWork;
   } while (completedWork !== null);
   console.log("goUp root was reached");
 }
 
 function appendAllChildren(completedWork) {
-  console.log("appending", completedWork);
   let toAppend = completedWork.child;
-
   while (toAppend !== null) {
     if (
       toAppend.type === "htmlNode" ||
@@ -468,63 +622,6 @@ function appendAllChildren(completedWork) {
 }
 
 // ---------------------------------------------------------------------------------------------
-
-// DIFF FOR CREATE, UPDATE, DELETE - NO OUTSIDE DIFFERENCE BETWEEN CREATE AND UDPATE
-// MOUNT - if current null - only create
-// RERENDER - if current exists - create, update, delete
-function diff(newEffect, oldEffect) {
-  if (newEffect.children && oldEffect?.children) {
-    let idx = 0;
-    while (newEffect.children[idx] || oldEffect.children[idx]) {
-      reconcile(newEffect.children[idx], oldEffect.children[idx], newEffect);
-      idx++;
-    }
-  }
-  if (newEffect.children && !oldEffect?.children) {
-    let idx = 0;
-    while (newEffect.children[idx]) {
-      reconcile(newEffect.children[idx], null, newEffect);
-      idx++;
-    }
-  }
-  if (!newEffect.children && oldEffect?.children) {
-    let idx = 0;
-    while (oldEffect.children[idx]) {
-      reconcile(null, oldEffect.children[idx], newEffect);
-      idx++;
-    }
-  }
-}
-
-// RECONCILE DIFFERENCES
-function reconcile(newEl, oldEl, newParent) {
-  if (newEl && oldEl) {
-    if (newEl.domType === oldEl.domType) {
-      newEl.accessor = oldEl.accessor;
-      if (oldEl.handlers !== newEl.handlers) {
-        newEl.removeListeners = oldEl.handlers;
-        newEl.flag = "UPDATE";
-      }
-      if (JSON.stringify(newEl.props) !== JSON.stringify(oldEl.props)) {
-        newEl.flag = "UPDATE";
-      }
-      diff(newEl, oldEl);
-    } else {
-      deleteOldChild(oldEl, newParent);
-      currentTopLevelParentAccessor = searchForHostParentAccessor(newEl);
-      createDOMNodes(newEl);
-      newEl.flag = "CREATE";
-    }
-  }
-  if (newEl && !oldEl) {
-    currentTopLevelParentAccessor = searchForHostParentAccessor(newEl);
-    createDOMNodes(newEl);
-    newEl.flag = "CREATE";
-  }
-  if (!newEl && oldEl) {
-    deleteOldChild(oldEl, newParent);
-  }
-}
 
 function searchForHostParentAccessor(effect) {
   const parent = effect.return;
@@ -602,6 +699,13 @@ function setInitialDOMProperties(effect) {
         });
       return;
     }
+  }
+}
+
+function deleteOldChildren(childToDelete, parent) {
+  while (childToDelete) {
+    deleteOldChild(childToDelete, parent);
+    childToDelete = childToDelete.sibling;
   }
 }
 
@@ -688,15 +792,14 @@ function commitUpdate(effect) {
       return null;
     }
     case "htmlNode": {
-      effect.removeListeners &&
-        Object.keys(effect.removeListeners).forEach((handle) => {
+      effect.alternate.handlers &&
+        Object.keys(effect.alternate.handlers).forEach((handle) => {
           const eventType = handle.toLocaleLowerCase().substring(2);
-          effect.accessor.removeEventListener(
+          effect.alternate.accessor.removeEventListener(
             eventType,
-            effect.removeListeners[handle]
+            effect.alternate.handlers[handle]
           );
         });
-      effect.removeListeners = null;
 
       effect.props &&
         Object.keys(effect.props).forEach((prop) => {
@@ -755,8 +858,8 @@ function makeNetworkRequest(handler) {
 
 // RUN
 const root = document.querySelector("#root");
-// render(jsxApp, root);
-render(jsxAppTest, root);
+render(jsxApp, root);
+// render(jsxAppTest, root);
 
 // ---------------------------------------------------------------------------------------------
 // TESTS
