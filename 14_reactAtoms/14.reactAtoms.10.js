@@ -24,40 +24,24 @@ function useState(initial) {
   let newHook;
   let previousHook = currentlyProcessedFiber.alternate?.hook[pointer];
 
+  // if first hook for current fiber
   if (hookArray === null) {
-    // hook array doesn't exist - first useState on this fiber
-    if (previousHook == null) {
-      newHook = { state: initial, queued: { pending: false, value: null } };
-      hookArray = [];
-      hookArray[pointer] = newHook;
-      currentlyProcessedFiber.hook = hookArray;
-    } else {
-      // update hook - take from queue
-      hookArray = [];
-      newHook = { state: previousHook.state, queued: previousHook.queued };
-      if (previousHook.queued.pending === true) {
-        newHook.state = previousHook.queued.value;
-        previousHook.queued.pending = false;
-        previousHook.queued.value = null;
-      }
-      hookArray[pointer] = newHook;
-      currentlyProcessedFiber.hook = hookArray;
-    }
+    hookArray = [];
+    currentlyProcessedFiber.hook = hookArray;
+  }
+  // if no hook in previous pass
+  if (previousHook == null) {
+    newHook = { state: initial, queued: { pending: false, value: null } };
+    hookArray[pointer] = newHook;
   } else {
-    // hook array exists - second useState on this fiber
-    if (previousHook == null) {
-      newHook = { state: initial, queued: { pending: false, value: null } };
-      hookArray[pointer] = newHook;
-    } else {
-      // update hook
-      newHook = { state: previousHook.state, queued: previousHook.queued };
-      if (previousHook.queued.pending === true) {
-        newHook.state = previousHook.queued.value;
-        previousHook.queued.pending = false;
-        previousHook.queued.value = null;
-      }
-      hookArray[pointer] = newHook;
+    // update hook - take from queue, keep the queue
+    newHook = { state: previousHook.state, queued: previousHook.queued };
+    if (previousHook.queued.pending === true) {
+      newHook.state = previousHook.queued.value;
+      previousHook.queued.pending = false;
+      previousHook.queued.value = null;
     }
+    hookArray[pointer] = newHook;
   }
 
   const state = currentlyProcessedFiber.hook[pointer].state;
