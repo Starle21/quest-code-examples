@@ -458,19 +458,19 @@ function reconcileSingleChild(currentFiber, childEffect, returnFiber, subroot) {
       oldFiber.domType === childEffect.domType
     ) {
       // delete remaining children - check for currentFiber.sibling
-      deleteOldChildren(oldFiber.sibling, returnFiber);
+      markChildrenToDelete(oldFiber.sibling, returnFiber);
       const updatedFiber = updateFiber(currentFiber, childEffect, returnFiber);
-      placeChild(updatedFiber, subroot);
+      markChildPlacement(updatedFiber, subroot);
 
       return updatedFiber;
     } else {
       // didn't match, so delete and create below
-      deleteOldChildren(oldFiber, returnFiber);
+      markChildrenToDelete(oldFiber, returnFiber);
     }
   }
   // create new fiber, there is no old fiber
   const newFiber = createNewFiber(childEffect, returnFiber);
-  placeChild(newFiber, subroot);
+  markChildPlacement(newFiber, subroot);
   return newFiber;
 }
 
@@ -491,13 +491,13 @@ function reconcileChildArray(currentFiber, childEffect, returnFiber, subroot) {
       // reuse existing fiber fields
       newChildFiber = updateFiber(oldFiber, childEffect[idx], returnFiber);
       oldFiber.alternate = newChildFiber;
-      placeChild(newChildFiber, subroot);
+      markChildPlacement(newChildFiber, subroot);
     } else {
       // or delete and create
-      deleteOldChild(oldFiber, returnFiber);
+      markChildToDelete(oldFiber, returnFiber);
       newChildFiber = createNewFiber(childEffect[idx], returnFiber);
       oldFiber.alternate = newChildFiber;
-      placeChild(newChildFiber, subroot);
+      markChildPlacement(newChildFiber, subroot);
     }
     if (newFirstChildFiber === null) {
       newFirstChildFiber = newChildFiber;
@@ -510,14 +510,14 @@ function reconcileChildArray(currentFiber, childEffect, returnFiber, subroot) {
   }
   // delete rest of old fibers
   if (oldFiber !== null && idx === childEffect.length) {
-    deleteOldChildren(oldFiber, returnFiber);
+    markChildrenToDelete(oldFiber, returnFiber);
     return newFirstChildFiber;
   }
   // create new fibers
   if (oldFiber === null) {
     for (; idx < childEffect.length; idx++) {
       newChildFiber = createNewFiber(childEffect[idx], returnFiber);
-      placeChild(newChildFiber, subroot);
+      markChildPlacement(newChildFiber, subroot);
       if (newFirstChildFiber === null) {
         newFirstChildFiber = newChildFiber;
       } else {
@@ -529,9 +529,25 @@ function reconcileChildArray(currentFiber, childEffect, returnFiber, subroot) {
   return newFirstChildFiber;
 }
 
-function placeChild(newFiber, subroot) {
+function markChildPlacement(newFiber, subroot) {
   if (subroot && newFiber.alternate === null) {
     newFiber.flag = "CREATE";
+  }
+}
+
+function markChildrenToDelete(childToDelete, parent) {
+  while (childToDelete) {
+    markChildToDelete(childToDelete, parent);
+    childToDelete = childToDelete.sibling;
+  }
+}
+function markChildToDelete(childToDelete, parent) {
+  const deletions = parent.deletions;
+  if (deletions == null) {
+    parent.deletions = [childToDelete];
+    parent.flag = "DELETECHILD";
+  } else {
+    deletions.push(childToDelete);
   }
 }
 
@@ -618,7 +634,7 @@ function goUp(completedWork) {
           ) {
             break;
           }
-          completedWork.flag = "UPDATE";
+          markUpdate(completedWork);
         } else {
           let node = document.createElement(completedWork.domType);
           completedWork.accessor = node;
@@ -636,7 +652,7 @@ function goUp(completedWork) {
           ) {
             break;
           }
-          completedWork.flag = "UPDATE";
+          markUpdate(completedWork);
         } else {
           let node = document.createElementNS(
             "http://www.w3.org/2000/svg",
@@ -655,7 +671,7 @@ function goUp(completedWork) {
             break;
           }
 
-          completedWork.flag = "UPDATE";
+          markUpdate(completedWork);
         } else {
           let node = document.createTextNode("");
           completedWork.accessor = node;
@@ -676,6 +692,10 @@ function goUp(completedWork) {
     wip = completedWork;
   } while (completedWork !== null);
   console.log("goUp root was reached");
+}
+
+function markUpdate(fiber) {
+  fiber.flag = fiber.flag === "DELETECHILD" ? "DELETEANDUPDATE" : "UPDATE";
 }
 
 function setInitialDOMProperties(effect) {
@@ -740,22 +760,6 @@ function appendAllChildren(completedWork) {
   }
 }
 
-function deleteOldChildren(childToDelete, parent) {
-  while (childToDelete) {
-    deleteOldChild(childToDelete, parent);
-    childToDelete = childToDelete.sibling;
-  }
-}
-function deleteOldChild(childToDelete, parent) {
-  const deletions = parent.deletions;
-  if (deletions == null) {
-    parent.deletions = [childToDelete];
-    parent.flag = "DELETECHILD";
-  } else {
-    deletions.push(childToDelete);
-  }
-}
-
 // -------------------------------------------------------------------------------
 // COMMIT
 function traverseAndCommitEffects(finishedTree) {
@@ -787,7 +791,7 @@ function traverseAndCommitEffects(finishedTree) {
 }
 
 function commitEffect(effect) {
-  if (effect.flag === "DELETECHILD") {
+  if (effect.flag === "DELETECHILD" || effect.flag === "DELETEANDUPDATE") {
     effect.deletions.forEach((child) => {
       if (child.type === "component") {
         // relying on fce component having only one direct child
@@ -803,7 +807,7 @@ function commitEffect(effect) {
     commitRoot(effect, topAccessor);
     effect.flag = null;
   }
-  if (effect.flag === "UPDATE") {
+  if (effect.flag === "UPDATE" || effect.flag === "DELETEANDUPDATE") {
     commitUpdate(effect);
     effect.flag = null;
   }

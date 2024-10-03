@@ -255,7 +255,8 @@ react
  - react.lazy, error boundaries
  - concurrent mode, suspense
 react-reconciler
- - memoizing functions - their stack frames = fiber tree
+ - memoizing functions - their stack frames = fiber tree - directed acyclic tree (/ graph if added returned path viz Live)
+ - follows data flow principles - control flow follows data dependencies
  - figure out what state transitions to do
  - diff on tag update
  - running effects in order
