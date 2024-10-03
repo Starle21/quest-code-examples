@@ -10,6 +10,7 @@ import {
 // a LINKED LIST of fibers
 // mount, update, delete, commit (visiting each fiber)
 // state hook with closed over queue
+// state hook accepts function in setState
 // ---
 // let currentRoot = null;
 let wipRoot = null;
@@ -787,6 +788,7 @@ function commitUpdate(effect) {
           );
         });
 
+      // TODO: nice to have - filter out non dom props so they don't get placed in dom node
       effect.props &&
         Object.keys(effect.props).forEach((prop) => {
           effect.accessor[prop] = effect.props[prop];

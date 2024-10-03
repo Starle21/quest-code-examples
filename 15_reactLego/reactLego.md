@@ -239,3 +239,23 @@ reactive
 
 declarative
 - side-effects are auto-mounted and disposed
+
+
+
+...
+packages
+
+react-dom
+ - div, span, h1
+react
+ - react component, 
+ - hooks/effects, 
+ - props, state
+ - key, ref, context
+ - react.lazy, error boundaries
+ - concurrent mode, suspense
+react-reconciler
+ - memoizing functions - their stack frames = fiber tree
+ - figure out what state transitions to do
+ - diff on tag update
+ - running effects in order
