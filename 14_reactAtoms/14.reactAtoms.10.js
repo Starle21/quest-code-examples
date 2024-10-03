@@ -20,8 +20,9 @@ let _currentRoot;
 let currentlyProcessedFiber;
 let hookArray = null;
 let pointer;
-function useState(initial) {
+export function useState(initial) {
   let newHook;
+  let newState;
   let previousHook = currentlyProcessedFiber.alternate?.hook[pointer];
 
   // if first hook for current fiber
@@ -31,13 +32,19 @@ function useState(initial) {
   }
   // if no hook in previous pass
   if (previousHook == null) {
+    newState = typeof initial === "function" ? initial() : initial;
     newHook = { state: initial, queued: { pending: false, value: null } };
     hookArray[pointer] = newHook;
   } else {
     // update hook - take from queue, keep the queue
     newHook = { state: previousHook.state, queued: previousHook.queued };
     if (previousHook.queued.pending === true) {
-      newHook.state = previousHook.queued.value;
+      let newState = previousHook.queued.value;
+      newState =
+        typeof newState === "function"
+          ? newState(previousHook.state)
+          : newState;
+      newHook.state = newState;
       previousHook.queued.pending = false;
       previousHook.queued.value = null;
     }
@@ -851,8 +858,8 @@ function makeNetworkRequest(handler) {
 
 // RUN
 const root = document.querySelector("#root");
-render(jsxApp, root);
-// render(jsxAppTest, root);
+// render(jsxApp, root);
+render(jsxAppTest, root);
 
 // ---------------------------------------------------------------------------------------------
 // TESTS

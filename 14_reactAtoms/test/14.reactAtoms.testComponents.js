@@ -1,4 +1,4 @@
-// import { useState } from "../14.reactAtoms.10";
+import { useState } from "../14.reactAtoms.10";
 
 // TEST APP 1
 export const jsxAppTest = () => {
@@ -57,7 +57,7 @@ const OnButton = ({ on, setOn }) => {
     // so it get rerendered on every change
     handlers: {
       onClick: () => {
-        setOn(!on);
+        setOn((on) => !on);
       },
     },
   };
