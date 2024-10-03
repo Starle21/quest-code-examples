@@ -5,39 +5,75 @@ import {
   arrayFiber,
 } from "./test/14.reactAtoms.memoization";
 // description of an result element {type: '', props: {}, children: [Fce, Fce]}, handlers: [Fce, Fce]}
-// MEMOIZE JSX AND COMPONENT FCES
-// STACK FRAME = FIBER
-// LINKED LIST
+// MEMOIZE HOST AND COMPONENT FCES into each individual
+// STACK FRAME = FIBER, forming
+// a LINKED LIST of fibers
+// mount, update, delete, commit (visiting each fiber)
+// state hook with closed over queue
 // ---
-let currentRoot;
-let wipRoot;
+// let currentRoot = null;
+let wipRoot = null;
 let _Component;
 let _currentRoot;
-let currentTopLevelParentAccessor;
-let currentFiber;
-let pointer;
-let update;
 
 // DATA - WRITE - HOOK
-export function useState(initial) {
-  console.log("hook", currentFiber.hook.state[pointer]);
+let currentlyProcessedFiber;
+let hookArray = null;
+let pointer;
+function useState(initial) {
+  let newHook;
+  let previousHook = currentlyProcessedFiber.alternate?.hook[pointer];
 
-  if (currentFiber.hook.state[pointer] == undefined) {
-    currentFiber.hook.state[pointer] = initial;
+  if (hookArray === null) {
+    // hook array doesn't exist - first useState on this fiber
+    if (previousHook == null) {
+      newHook = { state: initial, queued: { pending: false, value: null } };
+      hookArray = [];
+      hookArray[pointer] = newHook;
+      currentlyProcessedFiber.hook = hookArray;
+    } else {
+      // update hook - take from queue
+      hookArray = [];
+      newHook = { state: previousHook.state, queued: previousHook.queued };
+      if (previousHook.queued.pending === true) {
+        newHook.state = previousHook.queued.value;
+        previousHook.queued.pending = false;
+        previousHook.queued.value = null;
+      }
+      hookArray[pointer] = newHook;
+      currentlyProcessedFiber.hook = hookArray;
+    }
+  } else {
+    // hook array exists - second useState on this fiber
+    if (previousHook == null) {
+      newHook = { state: initial, queued: { pending: false, value: null } };
+      hookArray[pointer] = newHook;
+    } else {
+      // update hook
+      newHook = { state: previousHook.state, queued: previousHook.queued };
+      if (previousHook.queued.pending === true) {
+        newHook.state = previousHook.queued.value;
+        previousHook.queued.pending = false;
+        previousHook.queued.value = null;
+      }
+      hookArray[pointer] = newHook;
+    }
   }
 
-  const state = currentFiber.hook.state[pointer];
-  currentFiber.hook.queue[pointer] = state;
+  const state = currentlyProcessedFiber.hook[pointer].state;
 
-  const dispatch = (fiber, pointer) => {
-    return (newState) => {
-      console.log("set new value", newState);
-      fiber.hook.queue[pointer] = newState;
-      markUpdateFromFiberToRoot(fiber);
-      render();
-    };
+  const createSetState = (fiber, pointer, queued) => (newState) => {
+    console.log("set new value", newState);
+    queued.pending = true;
+    queued.value = newState;
+    markUpdateFromFiberToRoot(fiber);
+    render();
   };
-  const setState = dispatch(currentFiber, pointer);
+  const setState = createSetState(
+    currentlyProcessedFiber,
+    pointer,
+    newHook.queued
+  );
 
   pointer++;
   return [state, setState];
@@ -45,13 +81,22 @@ export function useState(initial) {
 
 function markUpdateFromFiberToRoot(sourceFiber) {
   sourceFiber.update = true;
+  let alternate = sourceFiber.alternate;
+  if (alternate !== null) {
+    alternate.update = true;
+  }
   parent = sourceFiber.return;
+  alternate = parent.alternate;
   do {
     parent.childUpdate = true;
+    if (alternate !== null) {
+      alternate.childUpdate = true;
+    }
     parent = parent.return;
-  } while (parent && parent.type !== root);
+  } while (parent !== null);
 }
 
+// -------------------------------------
 // ELEMENTS / COMPONENTS
 const jsxApp = () => {
   return {
@@ -95,6 +140,10 @@ const jsxText = ({ nodeValue }) => {
   };
 };
 
+// only one setState
+// batch and render after both setStates
+// -- have a queue
+// keep switching between this fiber and its alternate on every render change
 const jsxNetworkButton = ({ setXCoord, setYCoord }) => {
   return {
     type: "htmlNode",
@@ -106,7 +155,7 @@ const jsxNetworkButton = ({ setXCoord, setYCoord }) => {
         makeNetworkRequest(({ x, y }) => {
           setXCoord(x);
           setYCoord(y);
-          console.log("local data updated from remote source");
+          console.log("local data updated from remote source", x, y);
         });
       },
     },
@@ -176,7 +225,7 @@ const fiberRoot = {
   current: null,
   type: "root",
 };
-const hostRoot = {
+let currentRoot = {
   accessor: null,
   alternate: null,
   element: null,
@@ -190,10 +239,11 @@ const hostRoot = {
 };
 function createFiberAndHostRoot(hostAccessor) {
   fiberRoot.accessor = hostAccessor;
-  fiberRoot.current = hostRoot;
-  hostRoot.accessor = fiberRoot;
+  fiberRoot.current = currentRoot;
+  currentRoot.accessor = fiberRoot;
 }
 function createWipRoot(root, element) {
+  console.log("root", root);
   const newWipHostRoot = {
     ...root,
     alternate: root,
@@ -202,7 +252,6 @@ function createWipRoot(root, element) {
   root.alternate = newWipHostRoot;
   return newWipHostRoot;
 }
-
 // --------
 // TOP LEVEL API
 function render(Component, DOMRoot) {
@@ -215,42 +264,36 @@ function render(Component, DOMRoot) {
 
   // MOUNT - dealing with create
   if (!wipRoot) {
-    // before loop
-    hostRoot.update = true;
-    wipRoot = createWipRoot(hostRoot, _Component);
-    console.log("wipRoot", wipRoot);
+    console.log("---");
+    currentRoot.update = true;
+    wipRoot = createWipRoot(currentRoot, _Component);
     wip = wipRoot;
-    // go down and up - reconcile, tag, create accessors
+    // go down and up - create fibers and accessors, append
     loop();
     // commit - traverse through the whole tree, do the flag effects
-    console.log("mount before commit wipRoot", wipRoot);
     traverseAndCommitEffects(wipRoot);
     fiberRoot.current = wipRoot;
-    // hostRoot.update = false;
-    wipRoot.update = false;
     console.log("mount end fiberRoot", fiberRoot);
   }
   // RERENDER - dealing with create, update, delete
   else {
-    // before loop
-    currentRoot = wipRoot;
+    console.log("---");
+    currentRoot = fiberRoot.current;
     wipRoot = createWipRoot(currentRoot, _Component);
-    // update = true;
     wip = wipRoot;
+    // go down and up - reconcile, tag update, delete, create, create accessors, append
     loop();
-    console.log("rerender before commit wipRoot", wipRoot);
-    // if (currentRoot && wip.props.nodeValue === "Bye!") throw new Error("stop");
 
-    // traverseAndCommitEffects(wipRoot);
-    // fiberRoot.current = wipRoot;
-    // wipRoot.childUpdate = false;
-    // console.log("rerender end fiberRoot", fiberRoot);
+    traverseAndCommitEffects(wipRoot);
+    fiberRoot.current = wipRoot;
+    console.log("rerender end fiberRoot", fiberRoot);
   }
 }
 
 // MAIN LOOP
-// wip effect - root { element: jsx(), children: null } (there is always current root, created before, it never gets created it in the main loop)
-// wip effect - functional { function: App(), children: null }
+// wip effect - root { element: jsx(), children: null }
+//   (there is always current root, created before, it never gets created it in the main loop)
+// wip effect - functional { function: App(), children: null, element: null }
 // wip effect - host { element: jsx(), children: null }
 let wip;
 function loop() {
@@ -269,10 +312,7 @@ function loop() {
 // BEGIN
 // goDown
 // in: { parent fiber }
-// out: { old child fiber } or { new child fiber } or null
-// reusing or creating new fibers (memoized effects) - storing state
-// reconciling children
-// tagging
+// out: { cloned old child fiber } or { reused old child fiber with newly calculated props } of { fresh new child fiber } or null
 function goDown(wip) {
   console.warn("wip", wip);
   const current = wip.alternate;
@@ -307,10 +347,12 @@ function goDown(wip) {
         }
       }
       console.log("this fiber needs to be recalculated");
+      current.update = false;
     }
   }
   // reset update
   wip.update = false;
+
   // get child effect
   let childEffect;
   if (
@@ -335,12 +377,11 @@ function goDown(wip) {
     }
   }
   if (wip.type === "component") {
-    currentFiber = wip;
+    currentlyProcessedFiber = wip;
     pointer = 0;
-    wip.hook = { state: [], queue: [] };
-    if (current !== null && current.hook != null) {
-      wip.hook.state = current.hook.queue;
-    }
+    hookArray = null;
+    wip.hook = null;
+
     // run Component()
     const childJsx = wip.function();
     if (childJsx === null) {
@@ -348,7 +389,7 @@ function goDown(wip) {
     }
     // run jsx()
     childEffect = childJsx();
-    currentFiber = null;
+    currentlyProcessedFiber = null;
     console.log("childEffect", childEffect);
   }
 
@@ -396,31 +437,19 @@ function reconcileSingleChild(currentFiber, childEffect, returnFiber, subroot) {
         update: currentFiber.update,
         childUpdate: currentFiber.childUpdate,
       };
-      console.log("reconcile single", currentFiber.props);
-      console.log("reconcile single", updatedFiber.props);
-      console.log(
-        "reconcile single",
-        updatedFiber.props === currentFiber.props
-      );
       currentFiber.alternate = updatedFiber;
       placeChild(updatedFiber, subroot);
 
       return updatedFiber;
     } else {
       // didn't match, so delete and create below
-      deleteOldChildren(child, returnFiber);
+      deleteOldChildren(oldFiber, returnFiber);
     }
   }
   // create new fiber, there is no old fiber
   const newFiber = createNewFiber(childEffect, returnFiber);
   placeChild(newFiber, subroot);
   return newFiber;
-}
-
-function placeChild(newFiber, subroot) {
-  if (subroot && newFiber.alternate === null) {
-    newFiber.flag = "CREATE";
-  }
 }
 
 function reconcileChildArray(currentFiber, childEffect, returnFiber, subroot) {
@@ -491,17 +520,24 @@ function reconcileChildArray(currentFiber, childEffect, returnFiber, subroot) {
   return newFirstChildFiber;
 }
 
+function placeChild(newFiber, subroot) {
+  if (subroot && newFiber.alternate === null) {
+    newFiber.flag = "CREATE";
+  }
+}
+
 function createNewFiber(effect, parentFiber) {
   return {
     ...effect,
-    return: parentFiber,
     alternate: null,
-    sibling: null,
     child: null,
-    deletions: null,
+    sibling: null,
+    return: parentFiber,
     accessor: null,
+    deletions: null,
     update: false,
     childUpdate: false,
+    hook: null,
   };
 }
 
@@ -532,7 +568,8 @@ function goUp(completedWork) {
           console.log("equal", current.props === completedWork.props);
           if (
             JSON.stringify(current.props) ===
-            JSON.stringify(completedWork.props)
+              JSON.stringify(completedWork.props) &&
+            completedWork.handlers === current.handlers
           ) {
             break;
           }
@@ -549,7 +586,8 @@ function goUp(completedWork) {
         if (current !== null && completedWork.accessor != null) {
           if (
             JSON.stringify(current.props) ===
-            JSON.stringify(completedWork.props)
+              JSON.stringify(completedWork.props) &&
+            completedWork.handlers === current.handlers
           ) {
             break;
           }
@@ -595,77 +633,6 @@ function goUp(completedWork) {
   console.log("goUp root was reached");
 }
 
-function appendAllChildren(completedWork) {
-  let toAppend = completedWork.child;
-  while (toAppend !== null) {
-    if (
-      toAppend.type === "htmlNode" ||
-      toAppend.type === "textNode" ||
-      toAppend.type === "svgNode"
-    ) {
-      completedWork.accessor.appendChild(toAppend.accessor);
-    } else if (toAppend.child !== null) {
-      toAppend = toAppend.child;
-      continue;
-    }
-    if (toAppend === completedWork) {
-      return;
-    }
-    while (toAppend.sibling === null) {
-      if (toAppend.return === null || toAppend.return === completedWork) {
-        return;
-      }
-      toAppend = toAppend.return;
-    }
-    toAppend = toAppend.sibling;
-  }
-}
-
-// ---------------------------------------------------------------------------------------------
-
-function searchForHostParentAccessor(effect) {
-  const parent = effect.return;
-  const parentAccessor = parent.accessor;
-
-  if (parent.type === "root") {
-    return parentAccessor.accessor;
-  }
-
-  // above parent is component
-  // - effect.return.accessor null
-  if (!parentAccessor) {
-    return searchForHostParentAccessor(parent);
-  }
-  return parentAccessor;
-}
-
-function convertToDOMNode(effect) {
-  switch (effect.type) {
-    case "component": {
-      effect.accessor = null;
-      return;
-    }
-    case "htmlNode": {
-      let node = document.createElement(effect.domType);
-      effect.accessor = node;
-      return;
-    }
-    case "svgNode": {
-      let node = document.createElementNS(
-        "http://www.w3.org/2000/svg",
-        effect.domType
-      );
-      effect.accessor = node;
-      return;
-    }
-    case "textNode": {
-      let node = document.createTextNode("");
-      effect.accessor = node;
-      return;
-    }
-  }
-}
-
 function setInitialDOMProperties(effect) {
   // TODO: filter out non dom properties
   switch (effect.type) {
@@ -702,14 +669,38 @@ function setInitialDOMProperties(effect) {
   }
 }
 
+function appendAllChildren(completedWork) {
+  let toAppend = completedWork.child;
+  while (toAppend !== null) {
+    if (
+      toAppend.type === "htmlNode" ||
+      toAppend.type === "textNode" ||
+      toAppend.type === "svgNode"
+    ) {
+      completedWork.accessor.appendChild(toAppend.accessor);
+    } else if (toAppend.child !== null) {
+      toAppend = toAppend.child;
+      continue;
+    }
+    if (toAppend === completedWork) {
+      return;
+    }
+    while (toAppend.sibling === null) {
+      if (toAppend.return === null || toAppend.return === completedWork) {
+        return;
+      }
+      toAppend = toAppend.return;
+    }
+    toAppend = toAppend.sibling;
+  }
+}
+
 function deleteOldChildren(childToDelete, parent) {
   while (childToDelete) {
     deleteOldChild(childToDelete, parent);
     childToDelete = childToDelete.sibling;
   }
 }
-
-// DIFF - DELETE
 function deleteOldChild(childToDelete, parent) {
   const deletions = parent.deletions;
   if (deletions == null) {
@@ -720,7 +711,7 @@ function deleteOldChild(childToDelete, parent) {
   }
 }
 
-// --------
+// -------------------------------------------------------------------------------
 // COMMIT
 function traverseAndCommitEffects(finishedTree) {
   // TODO: add subtreeFlags
@@ -745,6 +736,8 @@ function traverseAndCommitEffects(finishedTree) {
       } while (parent !== null);
     }
   }
+  finishedTree.alternate.childUpdate = false;
+  finishedTree.childUpdate = false;
   console.log("commit reached back the top");
 }
 
@@ -775,6 +768,8 @@ function commitEffect(effect) {
   } else {
     return effect.sibling;
   }
+  effect.childUpdate = false;
+  if (effect.alternate) effect.alternate.childUpdate = false;
 }
 
 function commitRoot(effect, parent) {
@@ -830,6 +825,20 @@ function commitUpdate(effect) {
       return;
     }
   }
+}
+
+function searchForHostParentAccessor(effect) {
+  const parent = effect.return;
+  const parentAccessor = parent.accessor;
+
+  if (parent.type === "root") {
+    return parentAccessor.accessor;
+  }
+
+  if (!parentAccessor) {
+    return searchForHostParentAccessor(parent);
+  }
+  return parentAccessor;
 }
 
 function findAccessor(effect) {
