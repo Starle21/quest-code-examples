@@ -98,21 +98,23 @@ function markUpdateFromFiberToRoot(sourceFiber) {
 
 // -------------------------------------------------------------------------------
 // ELEMENTS / COMPONENTS
-const jsxApp = () => {
+const jsxApp = ({ children }) => {
   return {
     type: "component",
     domType: null,
-    props: {},
-    function: App,
+    props: { children },
+    function: () => App({ children }),
   };
 };
 
-const App = () => {
+const App = ({ children }) => {
   const [xCoord, setXCoord] = useState("");
   const [yCoord, setYCoord] = useState("");
   const [side, setSide] = useState("");
   return jsxDiv({
     children: [
+      children,
+      jsxBr(),
       jsxButton({
         children: jsxText({ nodeValue: "request remote data" }),
         onClick: () => {
@@ -155,6 +157,29 @@ const App = () => {
   });
 };
 
+const jsxImplicitMemo = () => {
+  return {
+    type: "component",
+    domType: null,
+    props: {},
+    function: ImplicitMemo,
+  };
+};
+
+const ImplicitMemo = () => {
+  return jsxDiv({
+    children: [
+      jsxText({
+        nodeValue: `Give me x and y and I'll create a square for you.`,
+      }),
+      jsxBr(),
+      jsxText({
+        nodeValue: `This text will not recalculate on parent update.`,
+      }),
+    ],
+  });
+};
+
 // only one setState
 // batch and render after both setStates
 // -- have a queue
@@ -180,6 +205,14 @@ const jsxText = ({ nodeValue }) => {
     type: "textNode",
     domType: "text",
     props: { nodeValue, children: null },
+  };
+};
+
+const jsxBr = () => {
+  return {
+    type: "htmlNode",
+    domType: "br",
+    props: { children: null },
   };
 };
 
@@ -953,7 +986,7 @@ function makeNetworkRequest(handler) {
 // -------------------------------------------------------------------------------
 // RUN
 const root = document.querySelector("#root");
-render(jsxApp(), root);
+render(jsxApp({ children: jsxImplicitMemo() }), root);
 // render(jsxTop(), root);
 // render(jsxAppTest({ num: 100 }), root);
 
