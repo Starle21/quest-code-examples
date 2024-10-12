@@ -1,5 +1,158 @@
 import { useState } from "../14.reactAtoms.11";
 
+// TEST APP 3 PASS IN FUNCTIONAL COMPONENT AS A PROP - before changing object definitions
+export const jsxPassComponent = () => {
+  return {
+    type: "component",
+    domType: null,
+    element: null,
+    props: {},
+    function: Top,
+  };
+};
+
+const Top = () => {
+  const [state, setState] = useState(0);
+  return () => jsxContainer({ state, setState });
+};
+
+const jsxContainer = ({ state, setState }) => {
+  return {
+    type: "htmlNode",
+    domType: "div",
+    props: {},
+    element: [
+      () => jsxParent({ text: "clicked", children: jsxBefore }),
+      () => jsxTopButton({ state, setState }),
+    ],
+  };
+};
+
+const jsxParent = ({ text, children }) => {
+  return {
+    type: "component",
+    domType: null,
+    element: null,
+    props: { text, children },
+    function: () => Parent({ text, children }),
+  };
+};
+
+const Parent = ({ text, children }) => {
+  const [state, setState] = useState(5);
+  const [test, setTest] = useState("blb");
+  return () =>
+    jsxSubContainer({ text, test, state, children, setState, setTest });
+};
+
+const jsxSubContainer = ({
+  test,
+  text,
+  state,
+  children,
+  setState,
+  setTest,
+}) => {
+  return {
+    type: "htmlNode",
+    domType: "div",
+    props: {},
+    element: [
+      children,
+      () => jsxBottomButton({ text, state, setState }),
+      () => jsxClickableText({ test, setTest }),
+      () => jsxRerenders(),
+    ],
+  };
+};
+
+const jsxRerenders = () => {
+  return {
+    type: "component",
+    domType: null,
+    element: null,
+    props: {},
+    function: Rerenders,
+  };
+};
+
+const Rerenders = () => {
+  return () => jsxTextual({ content: "rerenders" });
+};
+
+const jsxBefore = () => {
+  return {
+    type: "component",
+    domType: null,
+    element: null,
+    props: {},
+    function: Before,
+  };
+};
+
+const Before = () => {
+  return () => jsxTextual({ content: "before" });
+};
+
+const jsxTextual = ({ content }) => {
+  return {
+    type: "htmlNode",
+    domType: "div",
+    props: {},
+    element: () => jsxLeafText({ nodeValue: content }),
+  };
+};
+
+const jsxLeafText = ({ nodeValue }) => {
+  return {
+    type: "textNode",
+    domType: "text",
+    props: { nodeValue },
+    element: null,
+  };
+};
+
+const jsxBottomButton = ({ text, state, setState }) => {
+  return {
+    type: "htmlNode",
+    domType: "button",
+    props: {},
+    element: () => jsxLeafText({ nodeValue: `${text} ${state}` }),
+    handlers: {
+      onClick: () => {
+        setState((prev) => prev + 1);
+      },
+    },
+  };
+};
+const jsxTopButton = ({ state, setState }) => {
+  return {
+    type: "htmlNode",
+    domType: "button",
+    props: {},
+    element: () => jsxLeafText({ nodeValue: `top state: ${state}` }),
+    handlers: {
+      onClick: () => {
+        setState((prev) => prev + 1);
+      },
+    },
+  };
+};
+
+const jsxClickableText = ({ test, setTest }) => {
+  return {
+    type: "htmlNode",
+    domType: "div",
+    props: {},
+    element: () => jsxLeafText({ nodeValue: test }),
+    handlers: {
+      onClick: () => {
+        setTest((prev) => `${prev}b`);
+      },
+    },
+  };
+};
+
 // TEST APP 1
 export const jsxAppTest = () => {
   return {
@@ -16,10 +169,11 @@ const AppTest = () => {
 };
 
 const ContainerTest = ({ on, setOn }) => {
+  console.log("container", on);
   return {
     type: "htmlNode",
     domType: "div",
-    props: { num: 2 },
+    props: { num: on },
     element: [
       () => OnButton({ on, setOn }),
       // Bye

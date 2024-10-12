@@ -43,7 +43,7 @@ const App = () => {
   // -- detail of a rectangle after clicking on it - showing coordinates of its egdes, central point
 
   return (
-    <div>
+    <div state={x} whatever={setX}>
       <div>Give me</div>
       <div>x coordinate</div>
       <input onInput={handleX} />

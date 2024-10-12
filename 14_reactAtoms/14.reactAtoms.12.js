@@ -1,7 +1,4 @@
-import {
-  jsxAppTest,
-  jsxPassComponent,
-} from "./test/14.reactAtoms.testComponents";
+import { jsxTop } from "./test/14.reactAtoms.testComponents.2";
 import {
   rootFiber,
   functionalFiber,
@@ -12,11 +9,9 @@ import {
 // STACK FRAME = FIBER, forming
 // a LINKED LIST of fibers
 // mount, update, delete, commit (visiting each fiber)
-// only ever creating 2 refences - one for wip and one for current
-// and creating only one array for each fiber
-// so that pointers are kept the same between whole passes
-// and event handlers can tap into the same fiber
-// added flag "DELETEANDUPDATE"
+// jsx function (component or host) passed as a prop - so that it doesn't get rerendered
+// host elements do not get non-dom props
+
 // -------------------------------------------------------------------------------
 // -------------------------------------------------------------------------------
 let wipRoot = null;
@@ -28,19 +23,6 @@ let _hostContainer;
 let currentlyProcessedFiber;
 let wipHookArray = null;
 let pointer;
-
-// if wipHookArray is null
-// grab array
-// otherwise create new
-
-// does previous fiber already have array?
-// if not create new
-// otherwise grab it and save it into wipHookArray
-
-// first mount ever - no previous hook array and no wip hook array
-// second useState - grab previous array
-
-// rerender grab previous array
 
 export function useState(initial) {
   let newHook;
@@ -115,21 +97,67 @@ function markUpdateFromFiberToRoot(sourceFiber) {
 
 // -------------------------------------------------------------------------------
 // ELEMENTS / COMPONENTS
+const jsxPropComponent = () => {
+  return {
+    type: "component",
+    domType: null,
+    props: {},
+    function: PropComponent,
+    element: null,
+  };
+};
+
+const PropComponent = () => {
+  return () => jsxImplicitMemo();
+};
+
+const jsxImplicitMemo = () => {
+  return {
+    type: "htmlNode",
+    domType: "div",
+    props: {},
+    element: () => jsxLabel({ text: `This should not rerender` }),
+  };
+};
+
+// prop children to keep it the same
+// passed into jsxApp
+// props: {children: jsxPropComponent}
+// jsxPropComponent()
+
+// render(jsxApp()) --> { props: { children: jsxPropComponent() } }
+// jsxPropComponent() --> { props: { children: jsxImplicitMemo() } }
+// jsxImplicitMemo() --> { props: { children: jsxLabel() } }
+// jsxLabel() --> { props: { children: jsxText(text) } }
+// jsxText(text) --> { props: { nodeValue: text, children: null } }
+
+// <App>
+// jsxApp()
+// { type: 'component', props: {}, children: jsxPropComponent(), function: App }
+
 const jsxApp = () => {
   return {
     type: "component",
     domType: null,
     props: {},
-    function: App,
+    function: () => App({ children: jsxPropComponent }),
   };
 };
 
-const App = () => {
+const App = ({ children }) => {
   const [xCoord, setXCoord] = useState("");
   const [yCoord, setYCoord] = useState("");
   const [side, setSide] = useState("");
   return () =>
-    jsxContainer({ xCoord, yCoord, side, setXCoord, setYCoord, setSide });
+    jsxContainer({
+      xCoord,
+      yCoord,
+      side,
+      setXCoord,
+      setYCoord,
+      setSide,
+      children,
+    });
 };
 
 const jsxContainer = ({
@@ -139,20 +167,22 @@ const jsxContainer = ({
   setXCoord,
   setYCoord,
   setSide,
+  children,
 }) => {
   return {
     type: "htmlNode",
     domType: "div",
     props: {},
     element: [
+      children,
       () => jsxNetworkButton({ setXCoord, setYCoord, setSide }),
-      () => jsxLabel({ name: "x" }),
+      () => jsxLabel({ text: "x coordinate:" }),
       () => jsxInput({ name: "x", coord: xCoord, setCoord: setXCoord }),
-      () => jsxLabel({ name: "y" }),
+      () => jsxLabel({ text: "y coordinate:" }),
       () => jsxInput({ name: "y", coord: yCoord, setCoord: setYCoord }),
       () => jsxSvg({ x: xCoord, y: yCoord }),
-      () => jsxCoordinate({ coord: xCoord, name: "x" }),
-      () => jsxCoordinate({ coord: yCoord, name: "y" }),
+      () => jsxCoordinate({ coord: xCoord, name: "x coordinate" }),
+      () => jsxCoordinate({ coord: yCoord, name: "y coordinate" }),
       () => jsxCoordinate({ coord: side, name: "side" }),
     ],
   };
@@ -190,12 +220,12 @@ const jsxNetworkButton = ({ setXCoord, setYCoord, setSide }) => {
   };
 };
 
-const jsxLabel = ({ name }) => {
+const jsxLabel = ({ text }) => {
   return {
     type: "htmlNode",
     domType: "div",
     props: {},
-    element: () => jsxText({ nodeValue: `${name} coordinate:` }),
+    element: () => jsxText({ nodeValue: `${text}` }),
   };
 };
 const jsxInput = ({ name, coord, setCoord }) => {
@@ -242,7 +272,7 @@ const jsxCoordinate = ({ coord, name }) => {
     type: "htmlNode",
     domType: "div",
     props: {},
-    element: () => jsxText({ nodeValue: `${name} coordinate is: ${coord}` }),
+    element: () => jsxText({ nodeValue: `${name} is: ${coord}` }),
   };
 };
 
@@ -292,6 +322,7 @@ function createWipRoot(currentRoot, element) {
   }
   return wipRoot;
 }
+
 // -------------------------------------------------------------------------------
 // TOP LEVEL API
 function render(Component, DOMRoot) {
@@ -350,13 +381,83 @@ function loop() {
     }
   }
 }
+// ---------------
+// when mounting
+// clones current host root fiber, which has child: null
+
+// when calling host root
+// current exists, but update scheduled
+// since root --> call wip.element() to get childEffect - call jsxApp()
+// gather childEffect: { type: 'component, props: { children: jsxPropComponent()}, element: null, function: App }
+// if props contain children fce, call children fce, save the effect it into props
+// reconcile children - create fiber for child jsxApp
+// { type: 'component', props: { children: { type: 'component', function: PropComponent, props: {} } }, element: null, child: null }
+
+// when calling jsxApp fiber
+// { type: 'component', props: { children: { type: 'component', function: PropComponent, props: {} } }, element: null, child: null }
+// current does not exists
+// since component --> call wip.function() with props
+// gather childElement
+// run childElement() with the gathered state to get childEffect
+// childEffect: { domType: 'div', props: {}, element: [children, jsxButton, ...]}
+// --xx react turns all nested childElement functions into effects here, not only the top one
+// reconcile children - create fiber for child div
+
+// when calling jsxContainer fiber
+// current does not exists
+// since host --> call wip.element() array - if fce turn functions into objects, else keep the children object
+// gather childEffect array
+// --
+// when rerendering
+// clones new wip host root fiber
+//
+// when calling host root fiber
+// fiber root { type: 'root', element: jsxApp(), child: jsxApp, props: null },
+// newProps === oldProps bail out, null === null
+// clone child fiber jsxApp - pointer address to oldProps copied over to newProps
+
+// when calling jsxApp fiber
+// { type: 'component', props: { children: { type: 'component', function: PropComponent, props: {} } }, element: [children, { jsxButton }, ... ], child: { jsxContainer fiber } }
+// newProps === oldProps bail out,
+// props: jsxPropComponent() --> { children: { type: 'component', function: PropComponent, props: {} } }
+// but interior state changed, update scheduled
+// run function App() again --> call useState to gather new state version, gather new childJsx: ()=>jsxContainer( args ... )
+// call childJsx() with newly gathered state
+// childEffect: { domType: 'div', props: {}, element: [children, jsxButton, ...]}
+
+// when calling jsxContainer fiber
+// { type: 'div', props: {}, element: [children, { jsxButton }, ... ], child: { jsxPropComponent fiber } }
+// childEffect: [ children, button, ...]
+// children field is not called
+// children field pointer, object, in the array stay the same
+// children: { type: 'component', function: PropComponent, props: {} }
+// child fiber is then children (as the first created fiber in the array) with the same props
+
+// when calling jsxApp fiber
+// do not run children, bcs it is already an object
+// but run jsxButton and ... to get objects
+// create new fibers for childEffect
+
+// when calling jsxContainer fiber
+// { type: 'div', props: {}, element: [children, { jsxButton }, ... ], child: { jsxPropComponent fiber } }
+// newProps !== oldProps bail out does not happen - jsxApp above rerendered
+// go to reconcile with new childEffect
+// childEffect: [ children, button, ...]
+// create new fibers for childEffect array
+// childEffect for jsxPropComponent fiber has the same props pointer as the alternate fiber
+
+// when calling jsxPropComponent fiber (when in its "stack" frame)
+// { type: 'component', function: PropComponent, props: {}, child: { jsxImplicitMemo fiber } }
+// so newProps === oldProps and bail out happens (not calling inside(child) functions)
+// {} === {},
+// clone child jsxImplicitMemo fiber
+// -- current, newProps === oldProps, no update --> bail out from the whole subtree return null --> go to goUp
 
 // -------------------------------------------------------------------------------
 // BEGIN
 // goDown
 // in: { parent fiber }
 // out: { cloned old child fiber } or { reused old child fiber with newly calculated props } of { fresh new child fiber } or null
-
 function goDown(wip) {
   console.warn("wip", wip);
   const current = wip.alternate;
@@ -423,15 +524,17 @@ function goDown(wip) {
     wip.hook = null;
 
     // run Component()
-    const childJsx = wip.function();
-    if (childJsx === null) {
+    const childElement = wip.function();
+
+    if (childElement === null) {
       return null;
     }
     // run jsx()
-    childEffect = childJsx();
+    childEffect = childElement();
+
     currentlyProcessedFiber = null;
-    console.log("childEffect", childEffect);
   }
+  console.log("childEffect", childEffect);
 
   // reconcile child effect with the previous version
   // old child fiber exists
@@ -814,6 +917,16 @@ function traverseAndCommitEffects(finishedTree) {
   console.log("commit reached back the top");
 }
 
+// COMMIT EFFECT
+// start at the host root
+// check deletions, process them if there are any
+// are there subtree flags?
+//// while there is sibling
+//// if there are, call COMMIT EFFECT with child
+// if there are not, stay at this fiber
+// commit placement if there are any
+// commit update if there are any
+
 function commitEffect(effect) {
   if (effect.flag === "DELETECHILD" || effect.flag === "DELETEANDUPDATE") {
     effect.deletions.forEach((child) => {
@@ -927,6 +1040,7 @@ function findAccessor(effect) {
   }
 }
 
+// -------------------------------------------------------------------------------
 // HELPERS
 function makeNetworkRequest(handler) {
   console.log("request pending");
@@ -939,11 +1053,10 @@ function makeNetworkRequest(handler) {
   }, 2000);
 }
 
+// -------------------------------------------------------------------------------
 // RUN
 const root = document.querySelector("#root");
 // render(jsxApp, root);
-// render(jsxAppTest, root);
-render(jsxPassComponent, root);
 
 // ---------------------------------------------------------------------------------------------
 // TESTS
@@ -965,3 +1078,100 @@ render(jsxPassComponent, root);
 // const div = goDown(explainerApp);
 // console.log("div", div);
 // --
+
+// -------------------------------------------------------------------------------
+
+// div()
+// div({children: [jsxInput(), jsxText({value: content, children: null})], ...otherProps})
+
+// jsxLabel({text})
+// <div>text<div>
+// {type: 'div', props: { text, children: jsxText({ nodeValue: `${text}` }) }}
+
+// view = f(data)
+// data - outside component = props, inside component = state
+// component = f(props * state)
+// component
+// - type, mapping definition,
+// - props = outside data passed to children data, self data,
+// - state = inside data
+
+// render(jsxApp()) --> render({ type: 'component', function: App, props: {} })
+// host root
+
+// <div>
+//   <label>
+//   <input>
+//   <button>
+// </div>
+// div({children: [label(), input(), button()]})
+// container fiber - stack frame
+// compare props - run memoized div again or not?
+// props are new object - parent where div is rerendered, div got called
+// props contain children - if they changed, run div
+// props contain self - if they changed, run div
+// state changed - run div
+// no bail out
+// call div stack frame - which means call children functions to get effect object
+// get that effect and reconcile with previous effect
+// if update - new props, handlers
+//
+// pass in effect object from above
+// one of the children function is object - take that object
+
+// before
+// div fiber
+// call children - element functions, gather objects
+// reconcile
+
+// after
+// div() called in parent, props (self, children) are new - replaced in reconcile
+// when in div fiber - div is run again
+// in props already there are objects - no need to run element fces
+// reconcile those objects
+// - update - replace props
+
+// jsxDiv({xCoord, setCoord})
+
+// jsxInput({name, coord, setCoord})
+// {type:'input', props: {id: name, value: coord, children: null, handlers:{fce onInput}}}
+
+// --------------
+// can pass functional component as prop to another functional component
+// host components can only take props that are defined for them
+// leaf - host component with null for children
+// middle - host or functional component with another element for children
+// top - functional component, leaves out into host components in the end
+
+// ------------
+// host component jsx functions can only take arguments/props that are defined on them
+// -- passing only the arguments that they consume in their frame
+// functional components can take children prop that defines other functional component
+
+// ------------------
+// ------------------
+// ------------------
+// children - {}, [{},{}], null, ''
+// ------------------
+// render(jsxTop())
+// --> { ... }
+// root.childEffect = { ... }
+
+// in root fiber
+// props null equal, but update scheduled
+// childEffect = wip.childEffect
+// --> creates fiber frame for jsxTop
+// --> wip.child = fiber for jsxTop
+
+// in jsxTop fiber
+// current null
+// it is a component, run Top function
+// gather returned childEffect (always singular object)
+// reconcile
+// --> creates fiber for jsxDiv
+// --> wip.child = fiber for jsxDiv
+
+// in jsxDiv fiber
+// current null
+// it is a host component
+// childEffect = wip.
