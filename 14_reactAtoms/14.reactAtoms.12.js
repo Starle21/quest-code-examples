@@ -1,4 +1,4 @@
-import { jsxTop } from "./test/14.reactAtoms.testComponents.2";
+import { jsxTop, jsxAppTest } from "./test/14.reactAtoms.testComponents.2";
 import {
   rootFiber,
   functionalFiber,
@@ -11,11 +11,12 @@ import {
 // mount, update, delete, commit (visiting each fiber)
 // jsx function (component or host) passed as a prop - so that it doesn't get rerendered
 // host elements do not get non-dom props
+// calling jsx right away when calling functional components
 
 // -------------------------------------------------------------------------------
 // -------------------------------------------------------------------------------
 let wipRoot = null;
-let _Element;
+let _topmostEffect;
 let _hostContainer;
 
 // -------------------------------------------------------------------------------
@@ -97,94 +98,80 @@ function markUpdateFromFiberToRoot(sourceFiber) {
 
 // -------------------------------------------------------------------------------
 // ELEMENTS / COMPONENTS
-const jsxPropComponent = () => {
-  return {
-    type: "component",
-    domType: null,
-    props: {},
-    function: PropComponent,
-    element: null,
-  };
-};
-
-const PropComponent = () => {
-  return () => jsxImplicitMemo();
-};
-
-const jsxImplicitMemo = () => {
-  return {
-    type: "htmlNode",
-    domType: "div",
-    props: {},
-    element: () => jsxLabel({ text: `This should not rerender` }),
-  };
-};
-
-// prop children to keep it the same
-// passed into jsxApp
-// props: {children: jsxPropComponent}
-// jsxPropComponent()
-
-// render(jsxApp()) --> { props: { children: jsxPropComponent() } }
-// jsxPropComponent() --> { props: { children: jsxImplicitMemo() } }
-// jsxImplicitMemo() --> { props: { children: jsxLabel() } }
-// jsxLabel() --> { props: { children: jsxText(text) } }
-// jsxText(text) --> { props: { nodeValue: text, children: null } }
-
-// <App>
-// jsxApp()
-// { type: 'component', props: {}, children: jsxPropComponent(), function: App }
-
 const jsxApp = () => {
   return {
     type: "component",
     domType: null,
     props: {},
-    function: () => App({ children: jsxPropComponent }),
+    function: App,
   };
 };
 
-const App = ({ children }) => {
+const App = () => {
   const [xCoord, setXCoord] = useState("");
   const [yCoord, setYCoord] = useState("");
   const [side, setSide] = useState("");
-  return () =>
-    jsxContainer({
-      xCoord,
-      yCoord,
-      side,
-      setXCoord,
-      setYCoord,
-      setSide,
-      children,
-    });
+  return jsxDiv({
+    children: [
+      jsxButton({
+        children: jsxText({ nodeValue: "request remote data" }),
+        onClick: () => {
+          makeNetworkRequest(({ x, y, side }) => {
+            setXCoord(x);
+            setYCoord(y);
+            setSide(side);
+            console.log("local data updated from remote source", x, y, side);
+          });
+        },
+      }),
+      jsxDiv({ children: jsxText({ nodeValue: "x coordinate:" }) }),
+      jsxInput({
+        id: "x",
+        value: xCoord,
+        onInput: (e) => setXCoord(e.target.value),
+      }),
+      jsxDiv({ children: jsxText({ nodeValue: "y coordinate:" }) }),
+      jsxInput({
+        id: "y",
+        value: yCoord,
+        onInput: (e) => setYCoord(e.target.value),
+      }),
+      jsxSvg({
+        children:
+          xCoord && yCoord
+            ? jsxSquare({ x: xCoord, y: yCoord })
+            : jsxAlert({
+                children: jsxText({ nodeValue: "Fill out all inputs!" }),
+              }),
+      }),
+      jsxDiv({
+        children: jsxText({ nodeValue: `x coordinate is: ${xCoord}` }),
+      }),
+      jsxDiv({
+        children: jsxText({ nodeValue: `y coordinate is: ${yCoord}` }),
+      }),
+      jsxDiv({ children: jsxText({ nodeValue: `side is: ${side}` }) }),
+    ],
+  });
 };
 
-const jsxContainer = ({
-  xCoord,
-  yCoord,
-  side,
-  setXCoord,
-  setYCoord,
-  setSide,
-  children,
-}) => {
+// only one setState
+// batch and render after both setStates
+// -- have a queue
+// keep switching between this fiber and its alternate on every render change
+const jsxDiv = ({ onClick, children }) => {
   return {
     type: "htmlNode",
     domType: "div",
-    props: {},
-    element: [
-      children,
-      () => jsxNetworkButton({ setXCoord, setYCoord, setSide }),
-      () => jsxLabel({ text: "x coordinate:" }),
-      () => jsxInput({ name: "x", coord: xCoord, setCoord: setXCoord }),
-      () => jsxLabel({ text: "y coordinate:" }),
-      () => jsxInput({ name: "y", coord: yCoord, setCoord: setYCoord }),
-      () => jsxSvg({ x: xCoord, y: yCoord }),
-      () => jsxCoordinate({ coord: xCoord, name: "x coordinate" }),
-      () => jsxCoordinate({ coord: yCoord, name: "y coordinate" }),
-      () => jsxCoordinate({ coord: side, name: "side" }),
-    ],
+    props: { children },
+  };
+};
+
+const jsxButton = ({ onClick, children }) => {
+  return {
+    type: "htmlNode",
+    domType: "button",
+    props: { onClick, children },
   };
 };
 
@@ -192,87 +179,43 @@ const jsxText = ({ nodeValue }) => {
   return {
     type: "textNode",
     domType: "text",
-    props: { nodeValue },
-    element: null,
+    props: { nodeValue, children: null },
   };
 };
 
-// only one setState
-// batch and render after both setStates
-// -- have a queue
-// keep switching between this fiber and its alternate on every render change
-const jsxNetworkButton = ({ setXCoord, setYCoord, setSide }) => {
-  return {
-    type: "htmlNode",
-    domType: "button",
-    props: {},
-    element: () => jsxText({ nodeValue: "request remote data" }),
-    handlers: {
-      onClick: () => {
-        makeNetworkRequest(({ x, y, side }) => {
-          setXCoord(x);
-          setYCoord(y);
-          setSide(side);
-          console.log("local data updated from remote source", x, y, side);
-        });
-      },
-    },
-  };
-};
-
-const jsxLabel = ({ text }) => {
-  return {
-    type: "htmlNode",
-    domType: "div",
-    props: {},
-    element: () => jsxText({ nodeValue: `${text}` }),
-  };
-};
-const jsxInput = ({ name, coord, setCoord }) => {
+const jsxInput = ({ id, value, onInput }) => {
   return {
     type: "htmlNode",
     domType: "input",
-    props: { id: name, value: coord },
-    element: null,
-    handlers: {
-      onInput: (e) => {
-        setCoord(e.target.value);
-      },
-    },
-  };
-};
-const jsxSvg = ({ x, y }) => {
-  const element = x && y ? () => jsxSquare({ x, y }) : () => jsxAlert();
-  return {
-    type: "svgNode",
-    domType: "svg",
-    props: { xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 200 80" },
-    element,
+    props: { id, value, onInput, children: null },
   };
 };
 
-const jsxAlert = () => {
+const jsxSvg = ({ children }) => {
   return {
     type: "svgNode",
-    domType: "text",
-    props: { x: "0", y: "40", class: "small" },
-    element: () => jsxText({ nodeValue: "Fill out all inputs!" }),
+    domType: "svg",
+    props: {
+      xmlns: "http://www.w3.org/2000/svg",
+      viewBox: "0 0 200 80",
+      children,
+    },
   };
 };
+
 const jsxSquare = ({ x, y }) => {
   return {
     type: "svgNode",
     domType: "rect",
-    props: { x, y, width: "30", height: "30" },
-    element: null,
+    props: { x, y, width: "30", height: "30", children: null },
   };
 };
-const jsxCoordinate = ({ coord, name }) => {
+
+const jsxAlert = ({ children }) => {
   return {
-    type: "htmlNode",
-    domType: "div",
-    props: {},
-    element: () => jsxText({ nodeValue: `${name} is: ${coord}` }),
+    type: "svgNode",
+    domType: "text",
+    props: { x: "0", y: "40", class: "small", children },
   };
 };
 
@@ -286,7 +229,7 @@ const fiberRoot = {
 let currentRoot = {
   accessor: null,
   alternate: null,
-  element: null,
+  childEffect: null,
   child: null,
   props: null,
   return: null,
@@ -300,18 +243,18 @@ function createFiberAndHostRoot(hostAccessor) {
   fiberRoot.current = currentRoot;
   currentRoot.accessor = fiberRoot;
 }
-function createWipRoot(currentRoot, element) {
+function createWipRoot(currentRoot, childEffect) {
   let wipRoot = currentRoot.alternate;
   if (wipRoot === null) {
     wipRoot = {
       ...currentRoot,
       alternate: currentRoot,
-      element,
+      childEffect,
     };
     currentRoot.alternate = wipRoot;
   } else {
     wipRoot.accessor = currentRoot.accessor;
-    wipRoot.element = currentRoot.element;
+    wipRoot.childEffect = currentRoot.childEffect;
     wipRoot.child = currentRoot.child;
     wipRoot.props = currentRoot.props;
     wipRoot.return = null;
@@ -325,9 +268,9 @@ function createWipRoot(currentRoot, element) {
 
 // -------------------------------------------------------------------------------
 // TOP LEVEL API
-function render(Component, DOMRoot) {
+function render(Effect, DOMRoot) {
   // initialization
-  if (Component) _Element = Component;
+  if (Effect) _topmostEffect = Effect;
   if (DOMRoot) {
     _hostContainer = DOMRoot;
     createFiberAndHostRoot(DOMRoot);
@@ -337,11 +280,13 @@ function render(Component, DOMRoot) {
   if (!wipRoot) {
     console.log("---");
     currentRoot.update = true;
-    wipRoot = createWipRoot(currentRoot, _Element);
+    wipRoot = createWipRoot(currentRoot, _topmostEffect);
     wip = wipRoot;
     // go down and up - create fibers and accessors, append
     loop();
     // commit - traverse through the whole tree, do the flag effects
+
+    console.log("wipRoot before commit", wipRoot);
     traverseAndCommitEffects(wipRoot);
     fiberRoot.current = wipRoot;
     console.log("mount end fiberRoot", fiberRoot);
@@ -351,11 +296,12 @@ function render(Component, DOMRoot) {
   else {
     console.log("---");
     currentRoot = fiberRoot.current;
-    wipRoot = createWipRoot(currentRoot, _Element);
+    wipRoot = createWipRoot(currentRoot);
     wip = wipRoot;
     // go down and up - reconcile, tag update, delete, create, create accessors, append
     loop();
 
+    console.log("wipRoot before commit", wipRoot);
     traverseAndCommitEffects(wipRoot);
     fiberRoot.current = wipRoot;
     console.log("rerender end fiberRoot", fiberRoot);
@@ -381,78 +327,6 @@ function loop() {
     }
   }
 }
-// ---------------
-// when mounting
-// clones current host root fiber, which has child: null
-
-// when calling host root
-// current exists, but update scheduled
-// since root --> call wip.element() to get childEffect - call jsxApp()
-// gather childEffect: { type: 'component, props: { children: jsxPropComponent()}, element: null, function: App }
-// if props contain children fce, call children fce, save the effect it into props
-// reconcile children - create fiber for child jsxApp
-// { type: 'component', props: { children: { type: 'component', function: PropComponent, props: {} } }, element: null, child: null }
-
-// when calling jsxApp fiber
-// { type: 'component', props: { children: { type: 'component', function: PropComponent, props: {} } }, element: null, child: null }
-// current does not exists
-// since component --> call wip.function() with props
-// gather childElement
-// run childElement() with the gathered state to get childEffect
-// childEffect: { domType: 'div', props: {}, element: [children, jsxButton, ...]}
-// --xx react turns all nested childElement functions into effects here, not only the top one
-// reconcile children - create fiber for child div
-
-// when calling jsxContainer fiber
-// current does not exists
-// since host --> call wip.element() array - if fce turn functions into objects, else keep the children object
-// gather childEffect array
-// --
-// when rerendering
-// clones new wip host root fiber
-//
-// when calling host root fiber
-// fiber root { type: 'root', element: jsxApp(), child: jsxApp, props: null },
-// newProps === oldProps bail out, null === null
-// clone child fiber jsxApp - pointer address to oldProps copied over to newProps
-
-// when calling jsxApp fiber
-// { type: 'component', props: { children: { type: 'component', function: PropComponent, props: {} } }, element: [children, { jsxButton }, ... ], child: { jsxContainer fiber } }
-// newProps === oldProps bail out,
-// props: jsxPropComponent() --> { children: { type: 'component', function: PropComponent, props: {} } }
-// but interior state changed, update scheduled
-// run function App() again --> call useState to gather new state version, gather new childJsx: ()=>jsxContainer( args ... )
-// call childJsx() with newly gathered state
-// childEffect: { domType: 'div', props: {}, element: [children, jsxButton, ...]}
-
-// when calling jsxContainer fiber
-// { type: 'div', props: {}, element: [children, { jsxButton }, ... ], child: { jsxPropComponent fiber } }
-// childEffect: [ children, button, ...]
-// children field is not called
-// children field pointer, object, in the array stay the same
-// children: { type: 'component', function: PropComponent, props: {} }
-// child fiber is then children (as the first created fiber in the array) with the same props
-
-// when calling jsxApp fiber
-// do not run children, bcs it is already an object
-// but run jsxButton and ... to get objects
-// create new fibers for childEffect
-
-// when calling jsxContainer fiber
-// { type: 'div', props: {}, element: [children, { jsxButton }, ... ], child: { jsxPropComponent fiber } }
-// newProps !== oldProps bail out does not happen - jsxApp above rerendered
-// go to reconcile with new childEffect
-// childEffect: [ children, button, ...]
-// create new fibers for childEffect array
-// childEffect for jsxPropComponent fiber has the same props pointer as the alternate fiber
-
-// when calling jsxPropComponent fiber (when in its "stack" frame)
-// { type: 'component', function: PropComponent, props: {}, child: { jsxImplicitMemo fiber } }
-// so newProps === oldProps and bail out happens (not calling inside(child) functions)
-// {} === {},
-// clone child jsxImplicitMemo fiber
-// -- current, newProps === oldProps, no update --> bail out from the whole subtree return null --> go to goUp
-
 // -------------------------------------------------------------------------------
 // BEGIN
 // goDown
@@ -476,6 +350,11 @@ function goDown(wip) {
         if (wip.childUpdate === false) {
           // bail from the whole subtree
           console.log("bail out from begin for the whole subtree");
+          let child = wip.child;
+          while (child !== null) {
+            child.return = wip;
+            child = child.sibling;
+          }
           return null;
         } else {
           // copy over current pointers into new wip child fiber
@@ -496,25 +375,31 @@ function goDown(wip) {
 
   // get child effect
   let childEffect;
-  if (
-    wip.type === "root" ||
-    wip.type === "htmlNode" ||
-    wip.type === "svgNode" ||
-    wip.type === "textNode"
-  ) {
-    if (wip.element === null) {
+  if (wip.type === "root") {
+    if (wip.childEffect === null) {
       wip.child = null;
       return null;
     }
     // run jsx()
-    if (wip.element instanceof Array) {
-      childEffect = wip.element
-        .filter((child) => child)
-        .map((el) => {
-          return el();
-        });
+    if (wip.childEffect instanceof Array) {
+      childEffect = wip.childEffect.filter((effect) => effect);
     } else {
-      childEffect = wip.element();
+      childEffect = wip.childEffect;
+    }
+  }
+  if (
+    wip.type === "htmlNode" ||
+    wip.type === "svgNode" ||
+    wip.type === "textNode"
+  ) {
+    if (wip.props.children === null) {
+      wip.child = null;
+      return null;
+    }
+    if (wip.props.children instanceof Array) {
+      childEffect = wip.props.children.filter((effect) => effect);
+    } else {
+      childEffect = wip.props.children;
     }
   }
   if (wip.type === "component") {
@@ -522,15 +407,15 @@ function goDown(wip) {
     pointer = 0;
     wipHookArray = null;
     wip.hook = null;
+    const props = wip.props;
 
     // run Component()
-    const childElement = wip.function();
+    childEffect = wip.function(props);
 
-    if (childElement === null) {
+    if (childEffect === null) {
+      wip.child = null;
       return null;
     }
-    // run jsx()
-    childEffect = childElement();
 
     currentlyProcessedFiber = null;
   }
@@ -693,8 +578,7 @@ function updateFiber(currentFiber, childEffect, returnFiber) {
     currentFiber.alternate = wip;
   } else {
     wip.props = childEffect.props;
-    wip.element = childEffect.element;
-    wip.handlers = childEffect.handlers;
+    wip.childEffect = childEffect.childEffect;
     wip.type = currentFiber.type;
     wip.domType = currentFiber.domType;
     wip.accessor = currentFiber.accessor;
@@ -756,8 +640,7 @@ function goUp(completedWork) {
           console.log("equal", current.props === completedWork.props);
           if (
             JSON.stringify(current.props) ===
-              JSON.stringify(completedWork.props) &&
-            completedWork.handlers === current.handlers
+            JSON.stringify(completedWork.props)
           ) {
             break;
           }
@@ -774,8 +657,7 @@ function goUp(completedWork) {
         if (current !== null && completedWork.accessor != null) {
           if (
             JSON.stringify(current.props) ===
-              JSON.stringify(completedWork.props) &&
-            completedWork.handlers === current.handlers
+            JSON.stringify(completedWork.props)
           ) {
             break;
           }
@@ -826,36 +708,42 @@ function markUpdate(fiber) {
 }
 
 function setInitialDOMProperties(effect) {
-  // TODO: filter out non dom properties
+  let domPropsKeys = [];
+  let handlers = [];
+  domPropsKeys =
+    effect.props &&
+    Object.keys(effect.props).filter(
+      (key) => key !== "children" && !key.startsWith("on")
+    );
+  handlers =
+    effect.props &&
+    Object.keys(effect.props).filter((key) => key.startsWith("on"));
+
   switch (effect.type) {
     case "component": {
       return;
     }
     case "htmlNode": {
-      effect.props &&
-        Object.keys(effect.props).forEach((prop) => {
-          effect.accessor[prop] = effect.props[prop];
-        });
+      domPropsKeys.forEach((key) => {
+        effect.accessor[key] = effect.props[key];
+      });
 
-      effect.handlers &&
-        Object.keys(effect.handlers).forEach((handle) => {
-          const eventType = handle.toLocaleLowerCase().substring(2);
-          effect.accessor.addEventListener(eventType, effect.handlers[handle]);
-        });
+      handlers.forEach((handle) => {
+        const eventType = handle.toLocaleLowerCase().substring(2);
+        effect.accessor.addEventListener(eventType, effect.props[handle]);
+      });
       return;
     }
     case "svgNode": {
-      effect.props &&
-        Object.keys(effect.props).forEach((prop) => {
-          effect.accessor.setAttribute(prop, effect.props[prop]);
-        });
+      domPropsKeys.forEach((key) => {
+        effect.accessor.setAttribute(key, effect.props[key]);
+      });
       return;
     }
     case "textNode": {
-      effect.props &&
-        Object.keys(effect.props).forEach((prop) => {
-          effect.accessor[prop] = effect.props[prop];
-        });
+      domPropsKeys.forEach((key) => {
+        effect.accessor[key] = effect.props[key];
+      });
       return;
     }
   }
@@ -948,14 +836,14 @@ function commitEffect(effect) {
     commitUpdate(effect);
     effect.flag = null;
   }
+  effect.childUpdate = false;
+  if (effect.alternate) effect.alternate.childUpdate = false;
   let child = effect.child;
   if (child !== null) {
     return child;
   } else {
     return effect.sibling;
   }
-  effect.childUpdate = false;
-  if (effect.alternate) effect.alternate.childUpdate = false;
 }
 
 function commitRoot(effect, parent) {
@@ -968,46 +856,55 @@ function commitDelete(child, parent) {
 }
 
 function commitUpdate(effect) {
+  let domPropsKeys = [];
+  let handlerKeys = [];
+  let oldHandlers = [];
+  domPropsKeys =
+    effect.props &&
+    Object.keys(effect.props).filter(
+      (key) => key !== "children" && !key.startsWith("on")
+    );
+  handlerKeys =
+    effect.props &&
+    Object.keys(effect.props).filter((key) => key.startsWith("on"));
+  oldHandlers =
+    effect.alternate.props &&
+    Object.keys(effect.alternate.props).filter((key) => key.startsWith("on"));
+
   switch (effect.type) {
     case "component": {
       return null;
     }
     case "htmlNode": {
-      effect.alternate.handlers &&
-        Object.keys(effect.alternate.handlers).forEach((handle) => {
-          const eventType = handle.toLocaleLowerCase().substring(2);
-          effect.alternate.accessor.removeEventListener(
-            eventType,
-            effect.alternate.handlers[handle]
-          );
-        });
+      oldHandlers.forEach((handleKey) => {
+        const eventType = handleKey.toLocaleLowerCase().substring(2);
+        effect.alternate.accessor.removeEventListener(
+          eventType,
+          effect.alternate.props[handleKey]
+        );
+      });
 
-      // TODO: nice to have - filter out non dom props so they don't get placed in dom node
-      effect.props &&
-        Object.keys(effect.props).forEach((prop) => {
-          effect.accessor[prop] = effect.props[prop];
-        });
+      domPropsKeys.forEach((key) => {
+        effect.accessor[key] = effect.props[key];
+      });
 
-      effect.handlers &&
-        Object.keys(effect.handlers).forEach((handle) => {
-          const eventType = handle.toLocaleLowerCase().substring(2);
-          effect.accessor.addEventListener(eventType, effect.handlers[handle]);
-        });
+      handlerKeys.forEach((handleKey) => {
+        const eventType = handleKey.toLocaleLowerCase().substring(2);
+        effect.accessor.addEventListener(eventType, effect.props[handleKey]);
+      });
 
       return;
     }
     case "svgNode": {
-      effect.props &&
-        Object.keys(effect.props).forEach((prop) => {
-          effect.accessor.setAttribute(prop, effect.props[prop]);
-        });
+      domPropsKeys.forEach((key) => {
+        effect.accessor.setAttribute(key, effect.props[key]);
+      });
       return;
     }
     case "textNode": {
-      effect.props &&
-        Object.keys(effect.props).forEach((prop) => {
-          effect.accessor[prop] = effect.props[prop];
-        });
+      domPropsKeys.forEach((key) => {
+        effect.accessor[key] = effect.props[key];
+      });
       return;
     }
   }
@@ -1056,37 +953,11 @@ function makeNetworkRequest(handler) {
 // -------------------------------------------------------------------------------
 // RUN
 const root = document.querySelector("#root");
-// render(jsxApp, root);
+render(jsxApp(), root);
+// render(jsxTop(), root);
+// render(jsxAppTest({ num: 100 }), root);
 
-// ---------------------------------------------------------------------------------------------
-// TESTS
-// const resultRoot = goDown(rootFiber);
-// console.log("resultRoot", resultRoot);
-// --
-// const resultHost = goDown(functionalFiber);
-// console.log("resultHost", resultHost);
-// --
-// const resultArray = goDown(arrayFiber);
-// console.log("resultHost", resultArray);
-// --
-// const rootExplainerApp = goDown(topmostFiber);
-// console.log("rootExplainerApp", rootExplainerApp);
-// // --
-// const explainerApp = goDown(rootExplainerApp);
-// console.log("explainerApp", explainerApp);
-// // --
-// const div = goDown(explainerApp);
-// console.log("div", div);
-// --
-
-// -------------------------------------------------------------------------------
-
-// div()
-// div({children: [jsxInput(), jsxText({value: content, children: null})], ...otherProps})
-
-// jsxLabel({text})
-// <div>text<div>
-// {type: 'div', props: { text, children: jsxText({ nodeValue: `${text}` }) }}
+//-------------------------------------------------------------------------------
 
 // view = f(data)
 // data - outside component = props, inside component = state
@@ -1096,82 +967,6 @@ const root = document.querySelector("#root");
 // - props = outside data passed to children data, self data,
 // - state = inside data
 
-// render(jsxApp()) --> render({ type: 'component', function: App, props: {} })
-// host root
-
-// <div>
-//   <label>
-//   <input>
-//   <button>
-// </div>
-// div({children: [label(), input(), button()]})
-// container fiber - stack frame
-// compare props - run memoized div again or not?
-// props are new object - parent where div is rerendered, div got called
-// props contain children - if they changed, run div
-// props contain self - if they changed, run div
-// state changed - run div
-// no bail out
-// call div stack frame - which means call children functions to get effect object
-// get that effect and reconcile with previous effect
-// if update - new props, handlers
-//
-// pass in effect object from above
-// one of the children function is object - take that object
-
-// before
-// div fiber
-// call children - element functions, gather objects
-// reconcile
-
-// after
-// div() called in parent, props (self, children) are new - replaced in reconcile
-// when in div fiber - div is run again
-// in props already there are objects - no need to run element fces
-// reconcile those objects
-// - update - replace props
-
-// jsxDiv({xCoord, setCoord})
-
-// jsxInput({name, coord, setCoord})
-// {type:'input', props: {id: name, value: coord, children: null, handlers:{fce onInput}}}
-
-// --------------
-// can pass functional component as prop to another functional component
-// host components can only take props that are defined for them
-// leaf - host component with null for children
-// middle - host or functional component with another element for children
-// top - functional component, leaves out into host components in the end
-
-// ------------
-// host component jsx functions can only take arguments/props that are defined on them
-// -- passing only the arguments that they consume in their frame
-// functional components can take children prop that defines other functional component
-
 // ------------------
+// childEffect types - {}, [{},{}], null, ''
 // ------------------
-// ------------------
-// children - {}, [{},{}], null, ''
-// ------------------
-// render(jsxTop())
-// --> { ... }
-// root.childEffect = { ... }
-
-// in root fiber
-// props null equal, but update scheduled
-// childEffect = wip.childEffect
-// --> creates fiber frame for jsxTop
-// --> wip.child = fiber for jsxTop
-
-// in jsxTop fiber
-// current null
-// it is a component, run Top function
-// gather returned childEffect (always singular object)
-// reconcile
-// --> creates fiber for jsxDiv
-// --> wip.child = fiber for jsxDiv
-
-// in jsxDiv fiber
-// current null
-// it is a host component
-// childEffect = wip.

@@ -2,7 +2,7 @@ const webpack = require("webpack");
 const path = require("path");
 
 const config = {
-  entry: "./14_reactAtoms/14.reactAtoms.11.js",
+  entry: "./14_reactAtoms/14.reactAtoms.12.js",
   // entry: "./src/10index.js",
   output: {
     path: path.resolve(__dirname, "14_reactAtoms"),
