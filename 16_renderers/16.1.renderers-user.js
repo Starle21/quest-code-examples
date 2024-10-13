@@ -1,3 +1,4 @@
+import { useState } from "./16.1.renderers-core";
 // -------------------------------------------------------------------------------
 // ELEMENTS / COMPONENTS
 export const jsxApp = ({ children }) => {
@@ -59,7 +60,7 @@ const App = ({ children }) => {
   });
 };
 
-const jsxImplicitMemo = () => {
+export const jsxImplicitMemo = () => {
   return {
     type: "component",
     domType: null,
@@ -153,3 +154,16 @@ const jsxAlert = ({ children }) => {
     props: { x: "0", y: "40", class: "small", children },
   };
 };
+
+// -------------------------------------------------------------------------------
+// HELPERS
+function makeNetworkRequest(handler) {
+  console.log("request pending");
+  setTimeout(() => {
+    handler({
+      x: Math.ceil(Math.random() * 160),
+      y: Math.ceil(Math.random() * 40),
+      side: Math.ceil(Math.random() * 30),
+    });
+  }, 2000);
+}

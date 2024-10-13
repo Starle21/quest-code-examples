@@ -1,12 +1,13 @@
 // SPLIT CODE INTO RECONCILER - RENDERER, to allow different renderers
 // -------------------------------------------------------------------------------
+import { jsxApp, jsxImplicitMemo } from "./16.1.renderers-user";
 // -------------------------------------------------------------------------------
 let wipRoot = null;
 let _topmostEffect;
 let _hostContainer;
 
 // -------------------------------------------------------------------------------
-// DATA - WRITE - HOOK
+// HOOK
 let currentlyProcessedFiber;
 let wipHookArray = null;
 let pointer;
@@ -141,42 +142,25 @@ function render(Effect, DOMRoot) {
 
   // MOUNT - dealing with create
   if (!wipRoot) {
-    console.log("---");
     currentRoot.update = true;
     wipRoot = createWipRoot(currentRoot, _topmostEffect);
     wip = wipRoot;
-    // go down and up - create fibers and accessors, append
     loop();
-    // commit - traverse through the whole tree, do the flag effects
-
-    console.log("wipRoot before commit", wipRoot);
     traverseAndCommitEffects(wipRoot);
     fiberRoot.current = wipRoot;
-    console.log("mount end fiberRoot", fiberRoot);
-    console.log("---");
   }
   // RERENDER - dealing with create, update, delete
   else {
-    console.log("---");
     currentRoot = fiberRoot.current;
     wipRoot = createWipRoot(currentRoot);
     wip = wipRoot;
-    // go down and up - reconcile, tag update, delete, create, create accessors, append
     loop();
-
-    console.log("wipRoot before commit", wipRoot);
     traverseAndCommitEffects(wipRoot);
     fiberRoot.current = wipRoot;
-    console.log("rerender end fiberRoot", fiberRoot);
-    console.log("---");
   }
 }
 
 // MAIN LOOP
-// wip effect - root { element: jsx(), children: null }
-//   (there is always current root, created before, it never gets created it in the main loop)
-// wip effect - functional { function: App(), children: null, element: null }
-// wip effect - host { element: jsx(), children: null }
 let wip;
 function loop() {
   let nextWip;
@@ -192,9 +176,6 @@ function loop() {
 }
 // -------------------------------------------------------------------------------
 // BEGIN
-// goDown
-// in: { parent fiber }
-// out: { cloned old child fiber } or { reused old child fiber with newly calculated props } of { fresh new child fiber } or null
 function goDown(wip) {
   console.warn("wip", wip);
   const current = wip.alternate;
@@ -461,7 +442,6 @@ function cloneFiber(fiber, returnFiber) {
   let clonedFirstChildFiber = null;
   let clonedChildFiber = null;
   let clonedPreviousChildFiber = null;
-  console.log("fiber to clone", fiber);
   while (child !== null) {
     clonedChildFiber = updateFiber(child, child, returnFiber);
     if (clonedFirstChildFiber === null) {
@@ -477,8 +457,6 @@ function cloneFiber(fiber, returnFiber) {
 
 // -------------------------------------------------------------------------------
 // COMPLETE
-// creating accessors for host fibers
-// appending into dom tree
 function goUp(completedWork) {
   let next = null;
   do {
@@ -669,21 +647,12 @@ function traverseAndCommitEffects(finishedTree) {
 }
 
 // COMMIT EFFECT
-// start at the host root
-// check deletions, process them if there are any
-// are there subtree flags?
-//// while there is sibling
-//// if there are, call COMMIT EFFECT with child
-// if there are not, stay at this fiber
-// commit placement if there are any
-// commit update if there are any
-
 function commitEffect(effect) {
   if (effect.flag === "DELETECHILD" || effect.flag === "DELETEANDUPDATE") {
     effect.deletions.forEach((child) => {
       if (child.type === "component") {
-        // relying on fce component having only one direct child
-        return commitDelete(child.children[0].accessor, effect.accessor);
+        // relying on fce component having one direct host component child
+        return commitDelete(child.child.accessor, effect.accessor);
       }
       commitDelete(child.accessor, effect.accessor);
     });
@@ -801,35 +770,6 @@ function findAccessor(effect) {
 }
 
 // -------------------------------------------------------------------------------
-// HELPERS
-function makeNetworkRequest(handler) {
-  console.log("request pending");
-  setTimeout(() => {
-    handler({
-      x: Math.ceil(Math.random() * 160),
-      y: Math.ceil(Math.random() * 40),
-      side: Math.ceil(Math.random() * 30),
-    });
-  }, 2000);
-}
-
-// -------------------------------------------------------------------------------
 // RUN
 const root = document.querySelector("#root");
 render(jsxApp({ children: jsxImplicitMemo() }), root);
-// render(jsxTop(), root);
-// render(jsxAppTest({ num: 100 }), root);
-
-//-------------------------------------------------------------------------------
-
-// view = f(data)
-// data - outside component = props, inside component = state
-// component = f(props * state)
-// component
-// - type, mapping definition,
-// - props = outside data passed to children data, self data,
-// - state = inside data
-
-// ------------------
-// childEffect types - {}, [{},{}], null, ''
-// ------------------
