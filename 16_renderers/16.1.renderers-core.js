@@ -1,10 +1,14 @@
 // SPLIT CODE INTO RECONCILER - RENDERER, to allow different renderers
 // -------------------------------------------------------------------------------
-import { jsxApp, jsxImplicitMemo } from "./16.1.renderers-user";
-// -------------------------------------------------------------------------------
-let wipRoot = null;
-let _topmostEffect;
-let _hostContainer;
+import {
+  createHostNode,
+  createHostTextNode,
+  appendChildToContainer,
+  commitHostTextUpdate,
+  removeChild,
+  shouldNotMarkForCommitUpdate,
+  commitHostNodeUpdate,
+} from "./16.1.renderers-renderer";
 
 // -------------------------------------------------------------------------------
 // HOOK
@@ -12,7 +16,7 @@ let currentlyProcessedFiber;
 let wipHookArray = null;
 let pointer;
 
-export function useState(initial) {
+function useState(initial) {
   let newHook;
   let newState;
   let previousHookArray = currentlyProcessedFiber.alternate?.hook;
@@ -85,6 +89,8 @@ function markUpdateFromFiberToRoot(sourceFiber) {
 
 // -------------------------------------------------------------------------------
 // CREATE ROOT
+let wipRoot = null;
+
 const fiberRoot = {
   accessor: null,
   current: null,
@@ -133,31 +139,20 @@ function createWipRoot(currentRoot, childEffect) {
 // -------------------------------------------------------------------------------
 // TOP LEVEL API
 function render(Effect, DOMRoot) {
-  // initialization
-  if (Effect) _topmostEffect = Effect;
-  if (DOMRoot) {
-    _hostContainer = DOMRoot;
-    createFiberAndHostRoot(DOMRoot);
-  }
-
   // MOUNT - dealing with create
   if (!wipRoot) {
+    createFiberAndHostRoot(DOMRoot);
     currentRoot.update = true;
-    wipRoot = createWipRoot(currentRoot, _topmostEffect);
-    wip = wipRoot;
-    loop();
-    traverseAndCommitEffects(wipRoot);
-    fiberRoot.current = wipRoot;
-  }
-  // RERENDER - dealing with create, update, delete
-  else {
+  } else {
+    // RERENDER - dealing with create, update, delete
     currentRoot = fiberRoot.current;
-    wipRoot = createWipRoot(currentRoot);
-    wip = wipRoot;
-    loop();
-    traverseAndCommitEffects(wipRoot);
-    fiberRoot.current = wipRoot;
   }
+
+  wipRoot = createWipRoot(currentRoot, Effect);
+  wip = wipRoot;
+  loop();
+  traverseAndCommitEffects(wipRoot);
+  fiberRoot.current = wipRoot;
 }
 
 // MAIN LOOP
@@ -217,52 +212,56 @@ function goDown(wip) {
   // reset update
   wip.update = false;
 
-  // get child effect
   let childEffect;
-  if (wip.type === "root") {
-    if (wip.childEffect === null) {
+  switch (wip.type) {
+    case "root": {
+      if (wip.childEffect === null) {
+        wip.child = null;
+        return null;
+      }
+      if (wip.childEffect instanceof Array) {
+        childEffect = wip.childEffect.filter((effect) => effect);
+      } else {
+        childEffect = wip.childEffect;
+      }
+      break;
+    }
+    case "htmlNode":
+    case "svgNode": {
+      if (wip.props.children === null) {
+        wip.child = null;
+        return null;
+      }
+      if (wip.props.children instanceof Array) {
+        childEffect = wip.props.children.filter((effect) => effect);
+      } else {
+        childEffect = wip.props.children;
+      }
+      break;
+    }
+    case "textNode": {
       wip.child = null;
       return null;
     }
-    // run jsx()
-    if (wip.childEffect instanceof Array) {
-      childEffect = wip.childEffect.filter((effect) => effect);
-    } else {
-      childEffect = wip.childEffect;
+    case "component": {
+      currentlyProcessedFiber = wip;
+      pointer = 0;
+      wipHookArray = null;
+      wip.hook = null;
+      const props = wip.props;
+
+      childEffect = wip.function(props);
+
+      if (childEffect === null) {
+        wip.child = null;
+        return null;
+      }
+
+      currentlyProcessedFiber = null;
+      break;
     }
   }
-  if (
-    wip.type === "htmlNode" ||
-    wip.type === "svgNode" ||
-    wip.type === "textNode"
-  ) {
-    if (wip.props.children === null) {
-      wip.child = null;
-      return null;
-    }
-    if (wip.props.children instanceof Array) {
-      childEffect = wip.props.children.filter((effect) => effect);
-    } else {
-      childEffect = wip.props.children;
-    }
-  }
-  if (wip.type === "component") {
-    currentlyProcessedFiber = wip;
-    pointer = 0;
-    wipHookArray = null;
-    wip.hook = null;
-    const props = wip.props;
 
-    // run Component()
-    childEffect = wip.function(props);
-
-    if (childEffect === null) {
-      wip.child = null;
-      return null;
-    }
-
-    currentlyProcessedFiber = null;
-  }
   console.log("childEffect", childEffect);
 
   // reconcile child effect with the previous version
@@ -466,7 +465,6 @@ function goUp(completedWork) {
 
     switch (completedWork.type) {
       case "root": {
-        // completed whole tree - end complete phase
         console.log("goUp completed", completedWork);
         break;
       }
@@ -474,58 +472,37 @@ function goUp(completedWork) {
         // noop
         break;
       }
-      case "htmlNode": {
-        // if oldProps !== newProps -> FLAG UPDATE
+      case "htmlNode":
+      case "svgNode": {
         if (current !== null && completedWork.accessor != null) {
           console.log("props old new", current.props, completedWork.props);
           console.log("equal", current.props === completedWork.props);
           if (
-            JSON.stringify(current.props) ===
-            JSON.stringify(completedWork.props)
+            shouldNotMarkForCommitUpdate(current.props, completedWork.props)
           ) {
             break;
           }
           markUpdate(completedWork);
         } else {
-          let node = document.createElement(completedWork.domType);
-          completedWork.accessor = node;
-          setInitialDOMProperties(completedWork);
-          appendAllChildren(completedWork);
-        }
-        break;
-      }
-      case "svgNode": {
-        if (current !== null && completedWork.accessor != null) {
-          if (
-            JSON.stringify(current.props) ===
-            JSON.stringify(completedWork.props)
-          ) {
-            break;
-          }
-          markUpdate(completedWork);
-        } else {
-          let node = document.createElementNS(
-            "http://www.w3.org/2000/svg",
-            completedWork.domType
+          let node = createHostNode(
+            completedWork.type,
+            completedWork.domType,
+            completedWork.props
           );
           completedWork.accessor = node;
-          setInitialDOMProperties(completedWork);
           appendAllChildren(completedWork);
         }
-
         break;
       }
       case "textNode": {
         if (current !== null && completedWork.accessor != null) {
-          if (current.props.nodeValue === completedWork.props.nodeValue) {
+          if (current.props === completedWork.props) {
             break;
           }
-
           markUpdate(completedWork);
         } else {
-          let node = document.createTextNode("");
+          let node = createHostTextNode(completedWork.props);
           completedWork.accessor = node;
-          setInitialDOMProperties(completedWork);
         }
         break;
       }
@@ -548,48 +525,6 @@ function markUpdate(fiber) {
   fiber.flag = fiber.flag === "DELETECHILD" ? "DELETEANDUPDATE" : "UPDATE";
 }
 
-function setInitialDOMProperties(effect) {
-  let domPropsKeys = [];
-  let handlers = [];
-  domPropsKeys =
-    effect.props &&
-    Object.keys(effect.props).filter(
-      (key) => key !== "children" && !key.startsWith("on")
-    );
-  handlers =
-    effect.props &&
-    Object.keys(effect.props).filter((key) => key.startsWith("on"));
-
-  switch (effect.type) {
-    case "component": {
-      return;
-    }
-    case "htmlNode": {
-      domPropsKeys.forEach((key) => {
-        effect.accessor[key] = effect.props[key];
-      });
-
-      handlers.forEach((handle) => {
-        const eventType = handle.toLocaleLowerCase().substring(2);
-        effect.accessor.addEventListener(eventType, effect.props[handle]);
-      });
-      return;
-    }
-    case "svgNode": {
-      domPropsKeys.forEach((key) => {
-        effect.accessor.setAttribute(key, effect.props[key]);
-      });
-      return;
-    }
-    case "textNode": {
-      domPropsKeys.forEach((key) => {
-        effect.accessor[key] = effect.props[key];
-      });
-      return;
-    }
-  }
-}
-
 function appendAllChildren(completedWork) {
   let toAppend = completedWork.child;
   while (toAppend !== null) {
@@ -598,7 +533,7 @@ function appendAllChildren(completedWork) {
       toAppend.type === "textNode" ||
       toAppend.type === "svgNode"
     ) {
-      completedWork.accessor.appendChild(toAppend.accessor);
+      appendChildToContainer(completedWork.accessor, toAppend.accessor);
     } else if (toAppend.child !== null) {
       toAppend = toAppend.child;
       continue;
@@ -661,7 +596,8 @@ function commitEffect(effect) {
   }
   if (effect.flag === "CREATE") {
     const topAccessor = searchForHostParentAccessor(effect);
-    commitRoot(effect, topAccessor);
+    const node = findAccessor(effect);
+    commitPlacement(node, topAccessor);
     effect.flag = null;
   }
   if (effect.flag === "UPDATE") {
@@ -678,65 +614,29 @@ function commitEffect(effect) {
   }
 }
 
-function commitRoot(effect, parent) {
-  let node = findAccessor(effect);
-  parent.appendChild(node);
+function commitPlacement(child, parent) {
+  appendChildToContainer(parent, child);
 }
 
 function commitDelete(child, parent) {
-  parent.removeChild(child);
+  removeChild(parent, child);
 }
 
 function commitUpdate(effect) {
-  let domPropsKeys = [];
-  let handlerKeys = [];
-  let oldHandlers = [];
-  domPropsKeys =
-    effect.props &&
-    Object.keys(effect.props).filter(
-      (key) => key !== "children" && !key.startsWith("on")
-    );
-  handlerKeys =
-    effect.props &&
-    Object.keys(effect.props).filter((key) => key.startsWith("on"));
-  oldHandlers =
-    effect.alternate.props &&
-    Object.keys(effect.alternate.props).filter((key) => key.startsWith("on"));
-
   switch (effect.type) {
-    case "component": {
-      return null;
-    }
-    case "htmlNode": {
-      oldHandlers.forEach((handleKey) => {
-        const eventType = handleKey.toLocaleLowerCase().substring(2);
-        effect.alternate.accessor.removeEventListener(
-          eventType,
-          effect.alternate.props[handleKey]
-        );
-      });
-
-      domPropsKeys.forEach((key) => {
-        effect.accessor[key] = effect.props[key];
-      });
-
-      handlerKeys.forEach((handleKey) => {
-        const eventType = handleKey.toLocaleLowerCase().substring(2);
-        effect.accessor.addEventListener(eventType, effect.props[handleKey]);
-      });
-
-      return;
-    }
+    case "htmlNode":
     case "svgNode": {
-      domPropsKeys.forEach((key) => {
-        effect.accessor.setAttribute(key, effect.props[key]);
-      });
+      commitHostNodeUpdate(
+        effect.type,
+        effect.accessor,
+        effect.alternate.accessor,
+        effect.props,
+        effect.alternate.props
+      );
       return;
     }
     case "textNode": {
-      domPropsKeys.forEach((key) => {
-        effect.accessor[key] = effect.props[key];
-      });
+      commitHostTextUpdate(effect.accessor, effect.props);
       return;
     }
   }
@@ -769,7 +669,4 @@ function findAccessor(effect) {
   }
 }
 
-// -------------------------------------------------------------------------------
-// RUN
-const root = document.querySelector("#root");
-render(jsxApp({ children: jsxImplicitMemo() }), root);
+export { render, useState };

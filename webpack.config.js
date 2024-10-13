@@ -2,7 +2,7 @@ const webpack = require("webpack");
 const path = require("path");
 
 const config = {
-  entry: "./16_renderers/16.1.renderers-core.js",
+  entry: "./16_renderers/16.1.renderers-user.js",
   // entry: "./src/10index.js",
   output: {
     path: path.resolve(__dirname, "16_renderers"),

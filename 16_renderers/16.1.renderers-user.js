@@ -1,4 +1,4 @@
-import { useState } from "./16.1.renderers-core";
+import { render, useState } from "./16.1.renderers-core";
 // -------------------------------------------------------------------------------
 // ELEMENTS / COMPONENTS
 export const jsxApp = ({ children }) => {
@@ -19,7 +19,7 @@ const App = ({ children }) => {
       children,
       jsxBr(),
       jsxButton({
-        children: jsxText({ nodeValue: "request remote data" }),
+        children: jsxText("request remote data"),
         onClick: () => {
           makeNetworkRequest(({ x, y, side }) => {
             setXCoord(x);
@@ -29,13 +29,13 @@ const App = ({ children }) => {
           });
         },
       }),
-      jsxDiv({ children: jsxText({ nodeValue: "x coordinate:" }) }),
+      jsxDiv({ children: jsxText("x coordinate:") }),
       jsxInput({
         id: "x",
         value: xCoord,
         onInput: (e) => setXCoord(e.target.value),
       }),
-      jsxDiv({ children: jsxText({ nodeValue: "y coordinate:" }) }),
+      jsxDiv({ children: jsxText("y coordinate:") }),
       jsxInput({
         id: "y",
         value: yCoord,
@@ -46,16 +46,16 @@ const App = ({ children }) => {
           xCoord && yCoord
             ? jsxSquare({ x: xCoord, y: yCoord })
             : jsxAlert({
-                children: jsxText({ nodeValue: "Fill out all inputs!" }),
+                children: jsxText("Fill out all inputs!"),
               }),
       }),
       jsxDiv({
-        children: jsxText({ nodeValue: `x coordinate is: ${xCoord}` }),
+        children: jsxText(`x coordinate is: ${xCoord}`),
       }),
       jsxDiv({
-        children: jsxText({ nodeValue: `y coordinate is: ${yCoord}` }),
+        children: jsxText(`y coordinate is: ${yCoord}`),
       }),
-      jsxDiv({ children: jsxText({ nodeValue: `side is: ${side}` }) }),
+      jsxDiv({ children: jsxText(`side is: ${side}`) }),
     ],
   });
 };
@@ -72,13 +72,9 @@ export const jsxImplicitMemo = () => {
 const ImplicitMemo = () => {
   return jsxDiv({
     children: [
-      jsxText({
-        nodeValue: `Give me x and y and I'll create a square for you.`,
-      }),
+      jsxText(`Give me x and y and I'll create a square for you.`),
       jsxBr(),
-      jsxText({
-        nodeValue: `This text will not recalculate on parent update.`,
-      }),
+      jsxText(`This text will not recalculate on parent update.`),
     ],
   });
 };
@@ -103,11 +99,11 @@ const jsxButton = ({ onClick, children }) => {
   };
 };
 
-const jsxText = ({ nodeValue }) => {
+const jsxText = (text) => {
   return {
     type: "textNode",
     domType: "text",
-    props: { nodeValue, children: null },
+    props: text,
   };
 };
 
@@ -156,7 +152,7 @@ const jsxAlert = ({ children }) => {
 };
 
 // -------------------------------------------------------------------------------
-// HELPERS
+// HANDLERS
 function makeNetworkRequest(handler) {
   console.log("request pending");
   setTimeout(() => {
@@ -167,3 +163,101 @@ function makeNetworkRequest(handler) {
     });
   }, 2000);
 }
+
+// -------------------------------------------------------------------------------
+// -------------------------------------------------------------------------------
+// TEST APP 5
+export const jsxAppTest = ({ num }) => {
+  return {
+    type: "component",
+    domType: null,
+    props: { num },
+    function: () => AppTest({ num }),
+  };
+};
+
+const AppTest = ({ num }) => {
+  const [on, setOn] = useState(true);
+  return jsxDivWithNum({
+    num,
+    children: [
+      jsxButtonWithOn({
+        turnedOn: on,
+        onClick: () => {
+          setOn((on) => !on);
+        },
+        children: jsxText(`Toggle ${on ? "off" : "on"}`),
+      }),
+      jsxTestComp({ test: "testComp", on }),
+      on
+        ? jsxDivWithNum({
+            num: 3,
+            children: jsxH1WithNum({
+              num: 4,
+              className: "whatever",
+              children: jsxText("On!"),
+            }),
+          })
+        : null,
+      on
+        ? jsxDivWithNum({
+            num: 5,
+            children: jsxText(`Ahoj`),
+          })
+        : null,
+    ],
+  });
+};
+
+const jsxTestComp = ({ test, on }) => {
+  return {
+    type: "component",
+    domType: null,
+    props: { test, on },
+    function: () => TestComp({ test, on }),
+  };
+};
+
+const TestComp = ({ test, on }) => {
+  return jsxDivWithNum({
+    num: test,
+    children: jsxText(
+      on ? "It's on, rise and shine!" : "It's off, go to sleep!"
+    ),
+  });
+};
+
+// host components
+const jsxDivWithNum = ({ num, children }) => {
+  return {
+    type: "htmlNode",
+    domType: "div",
+    props: { className: num, children },
+  };
+};
+
+const jsxButtonWithOn = ({ turnedOn, onClick, children }) => {
+  return {
+    type: "htmlNode",
+    domType: "button",
+    props: { turnedOn, onClick, children },
+  };
+};
+
+const jsxH1WithNum = ({ className, num, children }) => {
+  return {
+    type: "htmlNode",
+    domType: "h1",
+    props: {
+      className,
+      value: num,
+      children,
+    },
+  };
+};
+
+// -------------------------------------------------------------------------------
+// RUN
+const root = document.querySelector("#root");
+// render(jsxApp({ children: jsxImplicitMemo() }), root);
+render(jsxAppTest({ num: 100 }), root);
