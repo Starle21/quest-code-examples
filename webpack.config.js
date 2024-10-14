@@ -4,7 +4,7 @@ const path = require("path");
 const config = {
   // entry: "./14_reactAtoms/14.reactAtoms.12.js",
   // entry: "./16_renderers/16.1.renderers-userDOM.js",
-  entry: "./16_renderers/16.1.renderers-userCanvas.js",
+  entry: "./16_renderers/16.1.renderers-userDOM.js",
   // entry: "./src/10index.js",
   output: {
     path: path.resolve(__dirname, "16_renderers"),

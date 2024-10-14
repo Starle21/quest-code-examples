@@ -1,4 +1,5 @@
 import { getFiber, render } from "./16.1.renderers-core";
+// NOT WORKING, imperative code in a prop
 // -------------------------------------------------------------------------------
 // canvas
 // const canvas = document.getElementById("canvas");

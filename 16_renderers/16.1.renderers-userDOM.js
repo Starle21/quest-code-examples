@@ -83,7 +83,7 @@ const ImplicitMemo = () => {
 // batch and render after both setStates
 // -- have a queue
 // keep switching between this fiber and its alternate on every render change
-const jsxDiv = ({ onClick, children }) => {
+const jsxDiv = ({ children }) => {
   return {
     type: "htmlNode",
     domType: "div",
@@ -261,5 +261,5 @@ const jsxH1WithNum = ({ className, num, children }) => {
 // -------------------------------------------------------------------------------
 // RUN
 const root = document.querySelector("#root");
-render(jsxApp({ children: jsxImplicitMemo() }), root);
-// render(jsxAppTest({ num: 100 }), root);
+// render(jsxApp({ children: jsxImplicitMemo() }), root);
+render(jsxAppTest({ num: 100 }), root);

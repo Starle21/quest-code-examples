@@ -4,10 +4,11 @@ import {
   createHostNode,
   createHostTextNode,
   appendChildToContainer,
-  commitHostTextUpdate,
   removeChild,
   shouldNotMarkForCommitUpdate,
+  commitHostTextUpdate,
   commitHostNodeUpdate,
+  commitCanvasNodeUpdate,
 } from "./16.1.renderers-renderer";
 
 // -------------------------------------------------------------------------------
@@ -54,7 +55,7 @@ function useState(initial) {
   const state = currentlyProcessedFiber.hook[pointer].state;
 
   const createSetState = (fiber, pointer, queued) => (newState) => {
-    console.log("set new value", newState);
+    console.error("set new value", newState);
     queued.pending = true;
     queued.value = newState;
     markUpdateFromFiberToRoot(fiber);
@@ -157,6 +158,7 @@ function render(Effect, DOMRoot) {
   loop();
   traverseAndCommitEffects(wipRoot);
   fiberRoot.current = wipRoot;
+  console.log("---");
 }
 
 // MAIN LOOP
@@ -242,6 +244,10 @@ function goDown(wip) {
         childEffect = wip.props.children;
       }
       break;
+    }
+    case "canvasNode": {
+      wip.child = null;
+      return null;
     }
     case "textNode": {
       wip.child = null;
@@ -510,6 +516,17 @@ function goUp(completedWork) {
         }
         break;
       }
+      case "canvasNode": {
+        if (current !== null) {
+          if (current.props === completedWork.props) {
+            break;
+          }
+          markUpdate(completedWork);
+        } else {
+          // noop - canvas node does not have accessor
+        }
+        break;
+      }
     }
 
     const siblingFiber = completedWork.sibling;
@@ -537,10 +554,16 @@ function appendAllChildren(completedWork) {
       toAppend.type === "textNode" ||
       toAppend.type === "svgNode"
     ) {
-      appendChildToContainer(completedWork.accessor, toAppend.accessor);
+      appendChildToContainer(
+        completedWork.accessor,
+        toAppend.accessor,
+        toAppend.type
+      );
     } else if (toAppend.type === "component" && toAppend.child !== null) {
       toAppend = toAppend.child;
       continue;
+    } else if (toAppend.type === "canvasNode") {
+      appendChildToContainer(completedWork.accessor, toAppend, toAppend.type);
     }
     if (toAppend === completedWork) {
       return;
@@ -591,9 +614,14 @@ function commitEffect(effect) {
     effect.deletions.forEach((child) => {
       if (child.type === "component") {
         // relying on fce component having one direct host component child
-        return commitDelete(child.child.accessor, effect.accessor);
+        return commitDelete(
+          child.child.accessor,
+          effect.accessor,
+          child.child.type,
+          child.child.props
+        );
       }
-      commitDelete(child.accessor, effect.accessor);
+      commitDelete(child.accessor, effect.accessor, child.type, child.props);
     });
     effect.deletions = null;
     effect.flag = effect.flag === "DELETEANDUPDATE" ? "UPDATE" : null;
@@ -601,10 +629,11 @@ function commitEffect(effect) {
   if (effect.flag === "CREATE") {
     const topAccessor = searchForHostParentAccessor(effect);
     const node = findAccessor(effect);
-    commitPlacement(node, topAccessor);
+    commitPlacement(node, topAccessor, effect.type);
     effect.flag = null;
   }
   if (effect.flag === "UPDATE") {
+    console.error("UPDATE", effect);
     commitUpdate(effect);
     effect.flag = null;
   }
@@ -618,12 +647,12 @@ function commitEffect(effect) {
   }
 }
 
-function commitPlacement(child, parent) {
-  appendChildToContainer(parent, child);
+function commitPlacement(child, parent, type) {
+  appendChildToContainer(parent, child, type);
 }
 
-function commitDelete(child, parent) {
-  removeChild(parent, child);
+function commitDelete(child, parent, childType, childProps) {
+  removeChild(parent, child, childType, childProps);
 }
 
 function commitUpdate(effect) {
@@ -641,6 +670,13 @@ function commitUpdate(effect) {
     case "textNode": {
       commitHostTextUpdate(effect.accessor, effect.props);
       return;
+    }
+    case "canvasNode": {
+      commitCanvasNodeUpdate(
+        effect.return.accessor,
+        effect.props,
+        effect.alternate.props
+      );
     }
   }
 }
@@ -662,6 +698,9 @@ function searchForHostParentAccessor(effect) {
 function findAccessor(effect) {
   if (effect.accessor) {
     return effect.accessor;
+  }
+  if (effect.type === "canvasNode") {
+    return effect;
   }
   // assumes that component effect has only one direct child
   let childEffect = effect.child.accessor;

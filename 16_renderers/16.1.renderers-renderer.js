@@ -10,10 +10,10 @@ export function createHostNode(type, domType, props) {
       node = document.createElementNS("http://www.w3.org/2000/svg", domType);
       break;
     }
-    case "canvasNode": {
-      node = props.render();
-      break;
-    }
+    // case "canvasNode": {
+    //   node = { type: "canvas-node", ...props };
+    //   break;
+    // }
   }
   setInitialDOMProperties(type, node, props);
   return node;
@@ -56,19 +56,31 @@ function setInitialDOMProperties(type, node, props) {
   });
 }
 
-export function appendChildToContainer(container, child) {
+export function appendChildToContainer(container, child, childType) {
+  if (childType === "canvasNode") {
+    const context = container.getContext("2d");
+    child.props.draw(context);
+    return;
+  }
   container.appendChild(child);
 }
 
 // remove
-export function removeChild(container, child) {
+export function removeChild(container, child, childType, newProps) {
+  if (childType === "canvasNode") {
+    const context = container.getContext("2d");
+    newProps.clear(context, newProps.x);
+    return;
+  }
   container.removeChild(child);
 }
 
 // update - call node props with new data
 // other dom nodes
 export function shouldNotMarkForCommitUpdate(oldProps, newProps) {
+  // TODO: JSON.stringify makes it not update when props is function probably
   if (JSON.stringify(oldProps) === JSON.stringify(newProps)) {
+    // if (oldProps === newProps) {
     return true;
   } else {
     return false;
@@ -129,4 +141,10 @@ export function commitHostNodeUpdate(type, node, newProps, oldProps) {
       break;
     }
   }
+}
+
+export function commitCanvasNodeUpdate(container, newProps, oldProps) {
+  const context = container.getContext("2d");
+  newProps.clear(context, oldProps.x);
+  newProps.draw(context);
 }
