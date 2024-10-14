@@ -178,6 +178,7 @@ export const jsxAppTest = ({ num }) => {
 
 const AppTest = ({ num }) => {
   const [on, setOn] = useState(true);
+  let sum = 5 + 3;
   return jsxDivWithNum({
     num,
     children: [
@@ -188,6 +189,7 @@ const AppTest = ({ num }) => {
         },
         children: jsxText(`Toggle ${on ? "off" : "on"}`),
       }),
+      jsxText(`sum is: ${sum}`),
       jsxTestComp({ test: "testComp", on }),
       on
         ? jsxDivWithNum({
@@ -259,5 +261,5 @@ const jsxH1WithNum = ({ className, num, children }) => {
 // -------------------------------------------------------------------------------
 // RUN
 const root = document.querySelector("#root");
-// render(jsxApp({ children: jsxImplicitMemo() }), root);
-render(jsxAppTest({ num: 100 }), root);
+render(jsxApp({ children: jsxImplicitMemo() }), root);
+// render(jsxAppTest({ num: 100 }), root);

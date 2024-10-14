@@ -87,6 +87,10 @@ function markUpdateFromFiberToRoot(sourceFiber) {
   } while (parent !== null);
 }
 
+export function getFiber() {
+  return currentlyProcessedFiber;
+}
+
 // -------------------------------------------------------------------------------
 // CREATE ROOT
 let wipRoot = null;
@@ -534,7 +538,7 @@ function appendAllChildren(completedWork) {
       toAppend.type === "svgNode"
     ) {
       appendChildToContainer(completedWork.accessor, toAppend.accessor);
-    } else if (toAppend.child !== null) {
+    } else if (toAppend.type === "component" && toAppend.child !== null) {
       toAppend = toAppend.child;
       continue;
     }
@@ -629,7 +633,6 @@ function commitUpdate(effect) {
       commitHostNodeUpdate(
         effect.type,
         effect.accessor,
-        effect.alternate.accessor,
         effect.props,
         effect.alternate.props
       );

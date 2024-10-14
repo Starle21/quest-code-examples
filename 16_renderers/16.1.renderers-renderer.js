@@ -10,6 +10,10 @@ export function createHostNode(type, domType, props) {
       node = document.createElementNS("http://www.w3.org/2000/svg", domType);
       break;
     }
+    case "canvasNode": {
+      node = props.render();
+      break;
+    }
   }
   setInitialDOMProperties(type, node, props);
   return node;
@@ -76,13 +80,7 @@ export function commitHostTextUpdate(node, newText) {
   node.nodeValue = newText;
 }
 
-export function commitHostNodeUpdate(
-  type,
-  newNode,
-  oldNode,
-  newProps,
-  oldProps
-) {
+export function commitHostNodeUpdate(type, node, newProps, oldProps) {
   let domPropsKeys = [];
   let oldDomPropsKeys = [];
   let newHandlerKeys = [];
@@ -101,30 +99,32 @@ export function commitHostNodeUpdate(
     newProps && Object.keys(newProps).filter((key) => key.startsWith("on"));
   oldHandlerKeys =
     oldProps && Object.keys(oldProps).filter((key) => key.startsWith("on"));
+
   oldHandlerKeys.forEach((key) => {
     const eventType = key.toLocaleLowerCase().substring(2);
-    oldNode.removeEventListener(eventType, oldProps[key]);
+    node.removeEventListener(eventType, oldProps[key]);
   });
   newHandlerKeys.forEach((key) => {
     const eventType = key.toLocaleLowerCase().substring(2);
-    newNode.addEventListener(eventType, newProps[key]);
+    node.addEventListener(eventType, newProps[key]);
   });
+
   switch (type) {
     case "htmlNode": {
       oldDomPropsKeys.forEach((key) => {
-        newNode[key] = null;
+        node[key] = null;
       });
       domPropsKeys.forEach((key) => {
-        newNode[key] = newProps[key];
+        node[key] = newProps[key];
       });
       break;
     }
     case "svgNode": {
       oldDomPropsKeys.forEach((key) => {
-        newNode.setAttribute(key, null);
+        node.setAttribute(key, null);
       });
       domPropsKeys.forEach((key) => {
-        newNode.setAttribute(key, newProps[key]);
+        node.setAttribute(key, newProps[key]);
       });
       break;
     }
