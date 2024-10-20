@@ -1,6 +1,18 @@
-// DATA - WRITE
-// store at the top
-let xCoord = "";
+// adding Hook
+
+// DATA - WRITE - HOOK
+let _values = [];
+let pointer = 0;
+function useState(initial) {
+  const state = _values[pointer] || initial;
+  let _pointer = pointer;
+  const setValue = (newValue) => {
+    _values[_pointer] = newValue;
+    render();
+  };
+  pointer++;
+  return [state, setValue];
+}
 
 // COMPONENT
 const jsxApp = () => {
@@ -13,14 +25,17 @@ const jsxApp = () => {
 };
 
 const App = () => {
+  const [xCoord, setXCoord] = useState("");
+  const [yCoord, setYCoord] = useState("");
   return jsxDiv({
     children: [
       jsxButton({
         children: jsxText("request remote data"),
         onClick: () => {
-          makeNetworkRequest((newValue) => {
-            xCoord = newValue;
-            console.log("new data!", xCoord);
+          makeNetworkRequest(({ x, y }) => {
+            setXCoord(x);
+            setYCoord(y);
+            console.log("new data!", x, y);
           });
         },
       }),
@@ -28,15 +43,24 @@ const App = () => {
       jsxInput({
         value: xCoord,
         onInput: (e) => {
-          xCoord = e.target.value;
+          setXCoord(e.target.value);
+        },
+      }),
+      jsxDiv({ children: jsxText("y coordinate:") }),
+      jsxInput({
+        value: yCoord,
+        onInput: (e) => {
+          setYCoord(e.target.value);
         },
       }),
       jsxSvg({
-        children: xCoord
-          ? jsxSquare({ x: xCoord })
-          : jsxAlert({ children: jsxText("Fill out all inputs!") }),
+        children:
+          xCoord && yCoord
+            ? jsxSquare({ x: xCoord, y: yCoord })
+            : jsxAlert({ children: jsxText("Fill out all inputs!") }),
       }),
       jsxDiv({ children: jsxText(`x coordinate is: ${xCoord}`) }),
+      jsxDiv({ children: jsxText(`y coordinate is: ${yCoord}`) }),
     ],
   });
 };
@@ -62,11 +86,11 @@ const jsxSvg = ({ children }) => {
   };
 };
 
-const jsxSquare = ({ x }) => {
+const jsxSquare = ({ x, y }) => {
   return {
     type: "svgNode",
     domType: "rect",
-    props: { x, y: "20", width: "30", height: "30", children: null },
+    props: { x, y, width: "30", height: "30", children: null },
   };
 };
 
@@ -110,7 +134,8 @@ const jsxText = (text) => {
 // ----
 let vDOM;
 let topAccessor;
-let isFocus = false;
+let isFocusX = false;
+let isFocusY = false;
 
 // GATHER COMPONENTS TOGETHER
 // pass data as prop
@@ -122,17 +147,33 @@ function createVDOM(description) {
   return tree;
 }
 
+let _description;
 // TOP LEVEL API
 function render(description) {
-  topAccessor && document.activeElement == topAccessor.children[2]
-    ? (isFocus = true)
-    : (isFocus = false);
+  setFocus();
 
-  vDOM = createVDOM(description);
+  if (description) _description = description;
+  pointer = 0;
+
+  vDOM = createVDOM(_description);
   topAccessor = convert(vDOM);
   document.body.replaceChildren(topAccessor);
 
-  topAccessor && isFocus && topAccessor.children[2].focus();
+  keepFocus();
+}
+
+function setFocus() {
+  topAccessor && document.activeElement == topAccessor.children[2]
+    ? (isFocusX = true)
+    : (isFocusX = false);
+  topAccessor && document.activeElement == topAccessor.children[4]
+    ? (isFocusY = true)
+    : (isFocusY = false);
+}
+
+function keepFocus() {
+  topAccessor && isFocusX && topAccessor.children[2].focus();
+  topAccessor && isFocusY && topAccessor.children[4].focus();
 }
 
 // CREATE ACCESSORS, RENDER TO DOM
@@ -185,13 +226,16 @@ function convert(element) {
   return node;
 }
 
-// HELPERS;
+// HELPERS
 function makeNetworkRequest(handler) {
   console.log("request pending");
   setTimeout(() => {
-    handler(Math.ceil(Math.random() * 160));
+    handler({
+      x: Math.ceil(Math.random() * 160),
+      y: Math.ceil(Math.random() * 60),
+    });
   }, 2000);
 }
 
 // RUN
-// setInterval(() => render(jsxApp()), 200);
+render(jsxApp());

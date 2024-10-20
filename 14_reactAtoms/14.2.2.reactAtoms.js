@@ -1,42 +1,52 @@
+// outside state
+
 // DATA - WRITE
 // store at the top
 let xCoord = "";
 
+const outsideState = {
+  xCoord: "",
+};
+
+const updateOutsideState = (state, payload) => {
+  state[payload.name] = payload.data;
+};
+
 // COMPONENT
-const jsxApp = () => {
+const jsxApp = ({ state, dispatch }) => {
   return {
     type: "component",
     domType: null,
-    props: {},
-    function: App,
+    props: { state, dispatch },
+    function: () => App({ state, dispatch }),
   };
 };
 
-const App = () => {
+const App = ({ state, dispatch }) => {
   return jsxDiv({
     children: [
       jsxButton({
         children: jsxText("request remote data"),
         onClick: () => {
           makeNetworkRequest((newValue) => {
-            xCoord = newValue;
-            console.log("new data!", xCoord);
+            dispatch({ name: "xCoord", data: newValue });
+            console.log("new data!", newValue);
           });
         },
       }),
       jsxDiv({ children: jsxText("x coordinate:") }),
       jsxInput({
-        value: xCoord,
+        value: state.xCoord,
         onInput: (e) => {
-          xCoord = e.target.value;
+          dispatch({ name: "xCoord", data: e.target.value });
         },
       }),
       jsxSvg({
-        children: xCoord
-          ? jsxSquare({ x: xCoord })
+        children: state.xCoord
+          ? jsxSquare({ x: state.xCoord })
           : jsxAlert({ children: jsxText("Fill out all inputs!") }),
       }),
-      jsxDiv({ children: jsxText(`x coordinate is: ${xCoord}`) }),
+      jsxDiv({ children: jsxText(`x coordinate is: ${state.xCoord}`) }),
     ],
   });
 };
@@ -117,6 +127,7 @@ let isFocus = false;
 function createVDOM(description) {
   let tree;
   if (description.type === "component") {
+    // props = description.props;
     tree = description.function();
   }
   return tree;
@@ -194,4 +205,18 @@ function makeNetworkRequest(handler) {
 }
 
 // RUN
-// setInterval(() => render(jsxApp()), 200);
+const loop = (state) => {
+  console.log("---");
+  console.log("loop");
+  console.log(state);
+  render(
+    jsxApp({
+      state: outsideState,
+      dispatch: (payload) => {
+        updateOutsideState(state, payload);
+        loop(state);
+      },
+    })
+  );
+};
+loop(outsideState);

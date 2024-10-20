@@ -4,10 +4,10 @@ const path = require("path");
 const config = {
   // entry: "./14_reactAtoms/14.reactAtoms.12.js",
   // entry: "./16_renderers/16.1.renderers-userDOM.js",
-  entry: "./12_singleSource/12.2.singleSource.js",
+  entry: "./14_reactAtoms/14.2.2.reactAtoms.js",
   // entry: "./src/10index.js",
   output: {
-    path: path.resolve(__dirname, "12_singleSource"),
+    path: path.resolve(__dirname, "14_reactAtoms"),
     filename: "bundle.js",
   },
   module: {
@@ -35,7 +35,7 @@ const config = {
     ],
   },
   devServer: {
-    static: path.resolve(__dirname, "12_singleSource"),
+    static: path.resolve(__dirname, "14_reactAtoms"),
     compress: false,
     port: 3001,
   },
