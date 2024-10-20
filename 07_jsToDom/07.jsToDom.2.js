@@ -4,7 +4,7 @@ const domRect = document.querySelector("rect");
 const domDiv = document.getElementById("point");
 
 class SquareValues extends EventTarget {
-  _y = 0;
+  _y = null;
   constructor() {
     super();
   }
