@@ -38,12 +38,12 @@ const jsxAlert = () => {
 // TOP LEVEL API
 function dataToDOM() {
   const description = xCoord ? jsxSquare({ x: xCoord }) : jsxAlert();
-  const accessor = convert(description);
+  const accessor = convertToDOMNode(description);
   domSvg.replaceChildren(accessor);
 }
 
 // CREATE ACCESSORS, RENDER TO DOM
-function convert(element) {
+function convertToDOMNode(element) {
   const node = document.createElementNS(
     "http://www.w3.org/2000/svg",
     element.domType

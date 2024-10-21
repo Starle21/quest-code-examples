@@ -129,14 +129,14 @@ function render(description) {
     : (isFocus = false);
 
   vDOM = createVDOM(description);
-  topAccessor = convert(vDOM);
+  topAccessor = createDOMNodes(vDOM);
   document.body.replaceChildren(topAccessor);
 
   topAccessor && isFocus && topAccessor.children[2].focus();
 }
 
 // CREATE ACCESSORS, RENDER TO DOM
-function convert(element) {
+function createDOMNodes(element) {
   let node;
   switch (element.type) {
     case "htmlNode": {
@@ -173,13 +173,13 @@ function convert(element) {
   }
   if (element.props.children instanceof Array) {
     element.props.children.forEach((child) => {
-      let childNode = convert(child);
+      let childNode = createDOMNodes(child);
       node.append(childNode);
     });
   } else if (element.props.children === null) {
     return node;
   } else {
-    let childNode = convert(element.props.children);
+    let childNode = createDOMNodes(element.props.children);
     node.append(childNode);
   }
   return node;

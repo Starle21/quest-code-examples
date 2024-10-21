@@ -127,24 +127,36 @@ const jsxText = (text) => {
   return {
     type: "textNode",
     domType: "text",
-    props: { text, children: null },
+    props: { textContent: text, children: null },
   };
 };
 
 // ----
 let vDOM;
+let prevVDOM;
 let topAccessor;
 let isFocusX = false;
 let isFocusY = false;
 
 // GATHER COMPONENTS TOGETHER
 // pass data as prop
-function createVDOM(description) {
-  let tree;
+function createVDOM(description, parent) {
+  let childEffect;
   if (description.type === "component") {
-    tree = description.function();
+    childEffect = description.function();
+    childEffect.return = parent;
+  } else {
+    childEffect = description;
+    childEffect.return = parent;
   }
-  return tree;
+  if (childEffect.props.children) {
+    if (childEffect.props.children instanceof Array) {
+      childEffect.props.children.forEach((sub) => createVDOM(sub, childEffect));
+    } else {
+      createVDOM(childEffect.props.children, childEffect);
+    }
+  }
+  return childEffect;
 }
 
 let _description;
@@ -154,26 +166,18 @@ function render(description) {
 
   if (description) _description = description;
   pointer = 0;
-
-  vDOM = createVDOM(_description);
-  topAccessor = createDOMNodes(vDOM);
-  document.body.replaceChildren(topAccessor);
+  if (!vDOM) {
+    vDOM = createVDOM(_description, null);
+    topAccessor = createDOMNodes(vDOM);
+    document.body.replaceChildren(topAccessor);
+    // console.log(vDOM);
+  } else {
+    prevVDOM = vDOM;
+    vDOM = createVDOM(_description, null);
+    diff(prevVDOM, vDOM);
+  }
 
   keepFocus();
-}
-
-function setFocus() {
-  topAccessor && document.activeElement == topAccessor.children[2]
-    ? (isFocusX = true)
-    : (isFocusX = false);
-  topAccessor && document.activeElement == topAccessor.children[4]
-    ? (isFocusY = true)
-    : (isFocusY = false);
-}
-
-function keepFocus() {
-  topAccessor && isFocusX && topAccessor.children[2].focus();
-  topAccessor && isFocusY && topAccessor.children[4].focus();
 }
 
 // CREATE ACCESSORS, RENDER TO DOM
@@ -193,6 +197,7 @@ function createDOMNodes(element) {
           const eventType = key.toLocaleLowerCase().substring(2);
           node.addEventListener(eventType, element.props[key]);
         });
+      element.accessor = node;
       break;
     }
     case "svgNode": {
@@ -205,10 +210,12 @@ function createDOMNodes(element) {
         .map((key) => {
           node.setAttribute(key, element.props[key]);
         });
+      element.accessor = node;
       break;
     }
     case "textNode": {
-      node = document.createTextNode(element.props.text);
+      node = document.createTextNode(element.props.textContent);
+      element.accessor = node;
       break;
     }
   }
@@ -226,6 +233,69 @@ function createDOMNodes(element) {
   return node;
 }
 
+// children: array, object
+// update, create whole subtree, delete with replace
+// old vdom and newvdom needs to have the same length of array of children
+function diff(prevVDOM, vDOM) {
+  // console.log("---");
+  if (vDOM instanceof Array) {
+    // console.log("array");
+    vDOM.map((child, index) => {
+      diff(prevVDOM[index], child);
+    });
+  } else {
+    if (prevVDOM !== null) {
+      const current = Object.keys(vDOM.props)
+        .filter((key) => key !== "children")
+        .reduce((obj, key) => {
+          obj[key] = vDOM.props[key];
+          return obj;
+        }, {});
+      const previous = Object.keys(prevVDOM.props)
+        .filter((key) => key !== "children")
+        .reduce((obj, key) => {
+          obj[key] = prevVDOM.props[key];
+          return obj;
+        }, {});
+
+      vDOM.accessor = prevVDOM.accessor;
+
+      if (
+        vDOM.domType === prevVDOM.domType &&
+        JSON.stringify(current) !== JSON.stringify(previous)
+      ) {
+        // console.log("different props", vDOM);
+        switch (vDOM.type) {
+          case "htmlNode":
+          case "textNode": {
+            Object.keys(current).map((key) => {
+              vDOM.accessor[key] = current[key];
+            });
+            break;
+          }
+          case "svgNode": {
+            Object.keys(current).map((key) => {
+              vDOM.accessor.setAttribute(key, current[key]);
+            });
+            break;
+          }
+        }
+      } else if (vDOM.domType !== prevVDOM.domType) {
+        // create whole subtree and replace
+        // console.log("different type", vDOM);
+        let node = createDOMNodes(vDOM);
+        vDOM.return.accessor.replaceChildren(node);
+      } else {
+        // console.log("same", vDOM);
+      }
+      // recurse down
+      if (vDOM.props.children !== null && prevVDOM.props.children !== null) {
+        diff(prevVDOM.props.children, vDOM.props.children);
+      }
+    }
+  }
+}
+
 // HELPERS
 function makeNetworkRequest(handler) {
   console.log("request pending");
@@ -235,6 +305,20 @@ function makeNetworkRequest(handler) {
       y: Math.ceil(Math.random() * 60),
     });
   }, 2000);
+}
+
+function setFocus() {
+  topAccessor && document.activeElement == topAccessor.children[2]
+    ? (isFocusX = true)
+    : (isFocusX = false);
+  topAccessor && document.activeElement == topAccessor.children[4]
+    ? (isFocusY = true)
+    : (isFocusY = false);
+}
+
+function keepFocus() {
+  topAccessor && isFocusX && topAccessor.children[2].focus();
+  topAccessor && isFocusY && topAccessor.children[4].focus();
 }
 
 // RUN

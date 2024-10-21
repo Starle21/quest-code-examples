@@ -94,28 +94,28 @@ function render(Component) {
   // MOUNT
   if (!accessors) {
     vDOM = createVDOM(_Component);
-    accessors = vDOM.map(convert);
+    accessors = vDOM.map(createDOMNodes);
     document.body.replaceChildren(...accessors);
   }
   // RERENDER
   else {
     prevVDOM = vDOM;
     vDOM = createVDOM(_Component);
-    findDiff(prevVDOM, vDOM);
+    diff(prevVDOM, vDOM);
   }
 
   keepFocus();
 }
 
 // CREATE ACCESSORS, RENDER TO DOM
-function convert(element) {
+function createDOMNodes(element) {
   let node = document.createElement(element[0]);
   if (context(element[0]))
     node = document.createElementNS("http://www.w3.org/2000/svg", element[0]);
   if (element[1]?.xmlns) node.setAttribute("xmlns", element[1].xmlns);
   if (element[1]?.viewBox) node.setAttribute("viewBox", element[1].viewBox);
   if (element[2] instanceof Array) {
-    const childAccessor = element[2].map(convert);
+    const childAccessor = element[2].map(createDOMNodes);
     node.append(...childAccessor);
   } else {
     if (element[1]?.x) node.setAttribute("x", element[1].x);
@@ -133,11 +133,11 @@ function convert(element) {
 }
 
 // FIND DIFF ON UPDATE
-function findDiff(prevVDOM, currentVDOM) {
+function diff(prevVDOM, currentVDOM) {
   for (let i = 0; i < currentVDOM.length; i++) {
     if (JSON.stringify(prevVDOM[i]) !== JSON.stringify(currentVDOM[i])) {
       if (currentVDOM[i][2] instanceof Array) {
-        const childAccessors = currentVDOM[i][2].map(convert);
+        const childAccessors = currentVDOM[i][2].map(createDOMNodes);
         accessors[i].replaceChildren(...childAccessors);
       } else {
         accessors[i].value = currentVDOM[i][2];
