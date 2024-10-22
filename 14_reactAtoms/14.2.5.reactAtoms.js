@@ -1,8 +1,4 @@
-// diff
-// create host root
-// createVDOM with host root
-// component captured in the tree in createVDOM
-// enabling for nested component functions
+// dividing diff into calculation and effect
 
 // DATA - WRITE - HOOK
 let _values = [];
@@ -155,131 +151,16 @@ function render(effect, DOMRoot) {
     hostRoot = createHostRoot(DOMRoot, effect);
   }
   pointer = 0;
-  console.error("before", vDOM);
   if (!vDOM) {
     vDOM = createVDOM({ ...hostRoot });
-    console.warn("root reached", vDOM);
     createDOMNodes(vDOM);
     commit(vDOM);
-    console.warn(vDOM);
+    console.log(vDOM);
   } else {
-    console.error("DIFF");
     prevVDOM = { ...vDOM };
     vDOM = createVDOM(vDOM);
-    console.log("diff", vDOM);
     diff(prevVDOM, vDOM);
   }
-}
-
-function createVDOM(effect) {
-  console.log("effect", effect);
-  let childEffect;
-  switch (effect.type) {
-    case "root": {
-      childEffect = effect.childEffect;
-      break;
-    }
-    case "component": {
-      childEffect = effect.function();
-      break;
-    }
-    case "svgNode":
-    case "textNode":
-    case "htmlNode": {
-      childEffect = effect.props.children;
-    }
-  }
-  if (childEffect === null) {
-    effect.child = null;
-    return effect;
-  } else if (childEffect instanceof Array) {
-    let childArray = childEffect.map((child) => {
-      let newChild = { ...child, return: effect };
-      return createVDOM(newChild);
-    });
-    effect.child = childArray;
-  } else {
-    let newChild = { ...childEffect, return: effect };
-    effect.child = createVDOM(newChild);
-  }
-  return effect;
-}
-
-// CREATE ACCESSORS, RENDER TO DOM
-function createDOMNodes(effect) {
-  let node;
-  console.log("up", effect);
-  switch (effect.type) {
-    case "root": {
-      node = null;
-      break;
-    }
-    case "component": {
-      effect.accessor = null;
-      node = null;
-      break;
-    }
-    case "htmlNode": {
-      node = document.createElement(effect.domType);
-      Object.keys(effect.props)
-        .filter((key) => key !== "children" && !key.startsWith("on"))
-        .map((key) => {
-          node[key] = effect.props[key];
-        });
-      Object.keys(effect.props)
-        .filter((key) => key.startsWith("on"))
-        .map((key) => {
-          const eventType = key.toLocaleLowerCase().substring(2);
-          node.addEventListener(eventType, effect.props[key]);
-        });
-      effect.accessor = node;
-      break;
-    }
-    case "svgNode": {
-      node = document.createElementNS(
-        "http://www.w3.org/2000/svg",
-        effect.domType
-      );
-      Object.keys(effect.props)
-        .filter((key) => key !== "children")
-        .map((key) => {
-          node.setAttribute(key, effect.props[key]);
-        });
-      effect.accessor = node;
-      break;
-    }
-    case "textNode": {
-      node = document.createTextNode(effect.props.textContent);
-      effect.accessor = node;
-      break;
-    }
-  }
-  if (effect.child instanceof Array) {
-    effect.child.forEach((child) => {
-      let childNode = createDOMNodes(child);
-      console.log("node 2", node);
-      console.log("childNode 2", childNode);
-      console.log("effect 2", effect);
-      if (node != null) {
-        childNode =
-          childNode !== null ? childNode : searchForChildAccessor(effect);
-        node.append(childNode);
-      }
-    });
-  } else if (effect.child === null) {
-    return node;
-  } else {
-    let childNode = createDOMNodes(effect.child);
-    console.log("node 1", node);
-    console.log("childNode 1", childNode);
-    console.log("effect 1", effect);
-    if (node != null) {
-      childNode =
-        childNode !== null ? childNode : searchForChildAccessor(effect);
-      node.append(childNode);
-    }
-  }
-  return node;
 }
 
 function diff(current, wip) {
@@ -400,10 +281,111 @@ function diffEffects(currentEffect, wipEffect) {
   }
 }
 
+function createVDOM(effect) {
+  let childEffect;
+  switch (effect.type) {
+    case "root": {
+      childEffect = effect.childEffect;
+      break;
+    }
+    case "component": {
+      childEffect = effect.function();
+      break;
+    }
+    case "svgNode":
+    case "textNode":
+    case "htmlNode": {
+      childEffect = effect.props.children;
+    }
+  }
+  if (childEffect === null) {
+    effect.child = null;
+    return effect;
+  } else if (childEffect instanceof Array) {
+    let childArray = childEffect.map((child) => {
+      let newChild = { ...child, return: effect };
+      return createVDOM(newChild);
+    });
+    effect.child = childArray;
+  } else {
+    let newChild = { ...childEffect, return: effect };
+    effect.child = createVDOM(newChild);
+  }
+  return effect;
+}
+
+// CREATE ACCESSORS, RENDER TO DOM
+function createDOMNodes(effect) {
+  let node;
+  switch (effect.type) {
+    case "root": {
+      node = null;
+      break;
+    }
+    case "component": {
+      effect.accessor = null;
+      node = null;
+      break;
+    }
+    case "htmlNode": {
+      node = document.createElement(effect.domType);
+      Object.keys(effect.props)
+        .filter((key) => key !== "children" && !key.startsWith("on"))
+        .map((key) => {
+          node[key] = effect.props[key];
+        });
+      Object.keys(effect.props)
+        .filter((key) => key.startsWith("on"))
+        .map((key) => {
+          const eventType = key.toLocaleLowerCase().substring(2);
+          node.addEventListener(eventType, effect.props[key]);
+        });
+      effect.accessor = node;
+      break;
+    }
+    case "svgNode": {
+      node = document.createElementNS(
+        "http://www.w3.org/2000/svg",
+        effect.domType
+      );
+      Object.keys(effect.props)
+        .filter((key) => key !== "children")
+        .map((key) => {
+          node.setAttribute(key, effect.props[key]);
+        });
+      effect.accessor = node;
+      break;
+    }
+    case "textNode": {
+      node = document.createTextNode(effect.props.textContent);
+      effect.accessor = node;
+      break;
+    }
+  }
+  if (effect.child instanceof Array) {
+    effect.child.forEach((child) => {
+      let childNode = createDOMNodes(child);
+      if (node != null) {
+        childNode =
+          childNode !== null ? childNode : searchForChildAccessor(effect);
+        node.append(childNode);
+      }
+    });
+  } else if (effect.child === null) {
+    return node;
+  } else {
+    let childNode = createDOMNodes(effect.child);
+    if (node != null) {
+      childNode =
+        childNode !== null ? childNode : searchForChildAccessor(effect);
+      node.append(childNode);
+    }
+  }
+  return node;
+}
+
 function commit(effect) {
-  console.log(effect);
   const childAccessor = searchForChildAccessor(effect);
-  console.log(childAccessor);
   document.body.replaceChildren(childAccessor);
 }
 
@@ -414,10 +396,6 @@ function searchForChildAccessor(effect) {
     return effect.child.accessor;
   }
 }
-
-// children: array, object
-// update, create whole subtree, delete with replace
-// old vdom and newvdom needs to have the same length of array of children
 
 // HELPERS
 function makeNetworkRequest(handler) {
@@ -433,6 +411,9 @@ function makeNetworkRequest(handler) {
 // RUN
 const root = document.querySelector("#root");
 render(jsxApp(), root);
+
+// -----------------
+// createVDOM linked list and loop
 
 // function createVDOM(effect) {
 //   console.log("effect", effect);
@@ -491,76 +472,5 @@ render(jsxApp(), root);
 //       }
 //       wip = wip.return;
 //     } while (wip !== null);
-//   }
-// }
-
-// ------------
-// previous diff version - works, but only for arrays of the same length
-
-// function diff(current, wip) {
-//   console.log("---");
-//   console.log("current", current);
-//   console.log("wip", wip);
-//   if (wip instanceof Array) {
-//     console.log("array", wip);
-//     wip.map((child, index) => {
-//       diff(current[index], child);
-//     });
-//   } else {
-//     if (current !== null) {
-//       const wipProps =
-//         wip.props !== null
-//           ? Object.keys(wip.props)
-//               .filter((key) => key !== "children")
-//               .reduce((obj, key) => {
-//                 obj[key] = wip.props[key];
-//                 return obj;
-//               }, {})
-//           : null;
-//       const currentProps =
-//         wip.props !== null
-//           ? Object.keys(current.props)
-//               .filter((key) => key !== "children")
-//               .reduce((obj, key) => {
-//                 obj[key] = current.props[key];
-//                 return obj;
-//               }, {})
-//           : null;
-
-//       wip.accessor = current.accessor;
-
-//       if (
-//         wip.domType === current.domType &&
-//         JSON.stringify(wipProps) !== JSON.stringify(currentProps)
-//       ) {
-//         console.log("different props", wip);
-//         switch (wip.type) {
-//           case "htmlNode":
-//           case "textNode": {
-//             Object.keys(wipProps).map((key) => {
-//               wip.accessor[key] = wipProps[key];
-//             });
-//             break;
-//           }
-//           case "svgNode": {
-//             Object.keys(wipProps).map((key) => {
-//               wip.accessor.setAttribute(key, wipProps[key]);
-//             });
-//             break;
-//           }
-//         }
-//       } else if (wip.domType !== current.domType) {
-//         // create whole subtree and replace
-//         console.log("different type", wip);
-//         let node = createDOMNodes(wip);
-//         wip.return.accessor.replaceChildren(node);
-//       } else {
-//         console.log("same", wip);
-//       }
-//       // recurse down
-//       if (wip.child !== null && current.child !== null) {
-//         diff(current.child, wip.child);
-//       }
-//     }
 //   }
 // }
