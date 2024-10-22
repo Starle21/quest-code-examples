@@ -1,4 +1,5 @@
 // dividing diff into calculation and effect
+// same function calls in top level
 
 // DATA - WRITE - HOOK
 let _values = [];
@@ -153,131 +154,13 @@ function render(effect, DOMRoot) {
   pointer = 0;
   if (!vDOM) {
     vDOM = createVDOM({ ...hostRoot });
-    createDOMNodes(vDOM);
-    commit(vDOM);
-    console.log(vDOM);
+    diff(null, vDOM);
+    traverseAndCommitEffects(vDOM);
   } else {
     prevVDOM = { ...vDOM };
     vDOM = createVDOM(vDOM);
     diff(prevVDOM, vDOM);
-  }
-}
-
-function diff(current, wip) {
-  const currentChild = current.child;
-  const wipChild = wip.child;
-
-  if (wipChild instanceof Array) {
-    let idx = 0;
-    // both exist
-    while (currentChild[idx] != null && idx < wipChild.length) {
-      // only updates or delete/create
-      diffEffects(currentChild[idx], wipChild[idx]);
-      idx++;
-    }
-    // current exists, wip does not
-    if (currentChild[idx] !== null && idx === wipChild.length) {
-      // delete rest of old
-      while (currentChild[idx] != null) {
-        current.accessor.removeChild(currentChild[idx].accessor);
-        idx++;
-      }
-      return;
-    }
-    // wip exists, current does not
-    if (currentChild[idx] == null) {
-      // create
-      while (wipChild[idx]) {
-        let node = createDOMNodes(wipChild[idx]);
-        wip.accessor.append(node);
-        idx++;
-      }
-      return;
-    }
-  } else {
-    if (currentChild != null && wipChild != null) {
-      diffEffects(currentChild, wipChild);
-    }
-    if (currentChild != null && wipChild == null) {
-      current.accessor.removeChild(currentChild.accessor);
-      return;
-    }
-    if (currentChild == null && wipChild != null) {
-      let node = createDOMNodes(wipChild);
-      wip.accessor.append(node);
-      return;
-    }
-  }
-}
-
-function diffEffects(currentEffect, wipEffect) {
-  console.log("---");
-  console.log("curr", currentEffect);
-  console.log("wip", wipEffect);
-  if (currentEffect != null && wipEffect != null) {
-    if (wipEffect.domType === currentEffect.domType) {
-      wipEffect.accessor = currentEffect.accessor;
-
-      const wipProps =
-        wipEffect.props !== null
-          ? Object.keys(wipEffect.props)
-              .filter((key) => key !== "children")
-              .reduce((obj, key) => {
-                obj[key] = wipEffect.props[key];
-                return obj;
-              }, {})
-          : null;
-      const currentProps =
-        currentEffect.props !== null
-          ? Object.keys(currentEffect.props)
-              .filter((key) => key !== "children")
-              .reduce((obj, key) => {
-                obj[key] = currentEffect.props[key];
-                return obj;
-              }, {})
-          : null;
-
-      if (JSON.stringify(wipProps) !== JSON.stringify(currentProps)) {
-        console.log("different props", wipEffect);
-        switch (wipEffect.type) {
-          case "htmlNode":
-          case "textNode": {
-            Object.keys(wipProps).map((key) => {
-              wipEffect.accessor[key] = wipProps[key];
-            });
-            break;
-          }
-          case "svgNode": {
-            Object.keys(wipProps).map((key) => {
-              wipEffect.accessor.setAttribute(key, wipProps[key]);
-            });
-            break;
-          }
-        }
-        Object.keys(currentProps)
-          .filter((key) => key.startsWith("on"))
-          .map((key) => {
-            const eventType = key.toLocaleLowerCase().substring(2);
-            currentEffect.accessor.removeEventListener(
-              eventType,
-              currentProps[key]
-            );
-          });
-        Object.keys(wipProps)
-          .filter((key) => key.startsWith("on"))
-          .map((key) => {
-            const eventType = key.toLocaleLowerCase().substring(2);
-            wipEffect.accessor.addEventListener(eventType, wipProps[key]);
-          });
-      }
-      diff(currentEffect, wipEffect);
-    } else {
-      console.log("different type", wipEffect);
-      currentEffect.return.accessor.removeChild(currentEffect.accessor);
-      let node = createDOMNodes(wipEffect);
-
-      wipEffect.return.accessor.appendChild(node);
-    }
+    traverseAndCommitEffects(vDOM);
   }
 }
 
@@ -384,17 +267,238 @@ function createDOMNodes(effect) {
   return node;
 }
 
-function commit(effect) {
-  const childAccessor = searchForChildAccessor(effect);
-  document.body.replaceChildren(childAccessor);
+function diff(current, wip) {
+  const currentChild = current ? current.child : null;
+  const wipChild = wip.child;
+
+  if (wipChild instanceof Array) {
+    let idx = 0;
+    // both exist
+    while (currentChild[idx] != null && idx < wipChild.length) {
+      // only updates or delete/create
+      diffEffects(currentChild[idx], wipChild[idx]);
+      idx++;
+    }
+    // current exists, wip does not
+    if (currentChild[idx] !== null && idx === wipChild.length) {
+      // delete rest of old
+      while (currentChild[idx] != null) {
+        markChildToDelete(currentChild, wip);
+        idx++;
+      }
+      return;
+    }
+    // wip exists, current does not
+    if (currentChild[idx] == null) {
+      // create
+      while (wipChild[idx]) {
+        createDOMNodes(wipChild[idx]);
+        markPlacement(wipChild[idx]);
+        idx++;
+      }
+      return;
+    }
+  } else {
+    if (currentChild != null && wipChild != null) {
+      diffEffects(currentChild, wipChild);
+    }
+    if (currentChild != null && wipChild == null) {
+      markChildToDelete(currentChild, wip);
+      return;
+    }
+    if (currentChild == null && wipChild != null) {
+      createDOMNodes(wipChild);
+      markPlacement(wipChild);
+      return;
+    }
+  }
+}
+
+function diffEffects(currentEffect, wipEffect) {
+  if (currentEffect != null && wipEffect != null) {
+    if (wipEffect.domType === currentEffect.domType) {
+      wipEffect.accessor = currentEffect.accessor;
+
+      const wipProps =
+        wipEffect.props !== null
+          ? Object.keys(wipEffect.props)
+              .filter((key) => key !== "children")
+              .reduce((obj, key) => {
+                obj[key] = wipEffect.props[key];
+                return obj;
+              }, {})
+          : null;
+      const currentProps =
+        currentEffect.props !== null
+          ? Object.keys(currentEffect.props)
+              .filter((key) => key !== "children")
+              .reduce((obj, key) => {
+                obj[key] = currentEffect.props[key];
+                return obj;
+              }, {})
+          : null;
+
+      if (JSON.stringify(wipProps) !== JSON.stringify(currentProps)) {
+        // console.log("different props", wipEffect);
+        markUpdate(wipEffect);
+      }
+      diff(currentEffect, wipEffect);
+    } else {
+      // console.log("different type", wipEffect);
+      markChildToDelete(currentEffect, wipEffect.return);
+      createDOMNodes(wipEffect);
+      markPlacement(wipEffect);
+    }
+  }
+}
+
+function markPlacement(newEffect) {
+  newEffect.flag = "CREATE";
+}
+
+function markChildToDelete(childToDelete, parent) {
+  const deletions = parent.deletions;
+  if (deletions == null) {
+    parent.deletions = [childToDelete];
+    parent.flag = "DELETECHILD";
+  } else {
+    deletions.push(childToDelete);
+  }
+}
+
+function markUpdate(fiber) {
+  fiber.flag = "UPDATE";
+}
+
+// COMMIT
+function traverseAndCommitEffects(finishedWork) {
+  let commitChild = finishedWork.child;
+  if (commitChild != null) {
+    if (commitChild instanceof Array) {
+      finishedWork.child.map((child) => {
+        commitEffect(child);
+        traverseAndCommitEffects(child);
+      });
+    } else {
+      commitEffect(commitChild);
+      traverseAndCommitEffects(finishedWork.child);
+    }
+  }
+}
+
+function commitEffect(effect) {
+  // console.log("commit", effect);
+  if (effect.flag === "DELETECHILD") {
+    effect.deletions.forEach((child) => {
+      if (child.type === "component") {
+        // relying on fce component having only one direct child
+        return commitDelete(child.child.accessor, effect.accessor);
+      }
+      commitDelete(child.accessor, effect.accessor);
+    });
+    effect.deletions = null;
+    effect.flag = null;
+  }
+  if (effect.flag === "CREATE") {
+    let topAccessor = searchForHostParentAccessor(effect);
+    commitPlacement(effect, topAccessor);
+    effect.flag = null;
+  }
+  if (effect.flag === "UPDATE") {
+    commitUpdate(effect);
+    effect.flag = null;
+  }
+}
+
+function commitPlacement(effect, parent) {
+  let node = searchForChildAccessor(effect);
+  parent.appendChild(node);
+}
+
+function commitDelete(child, parent) {
+  parent.removeChild(child);
+}
+
+function commitUpdate(effect) {
+  let domPropsKeys = [];
+  let handlerKeys = [];
+  let oldHandlers = [];
+  domPropsKeys =
+    effect.props &&
+    Object.keys(effect.props).filter(
+      (key) => key !== "children" && !key.startsWith("on")
+    );
+  handlerKeys =
+    effect.props &&
+    Object.keys(effect.props).filter((key) => key.startsWith("on"));
+  // oldHandlers =
+  //   effect.alternate.props &&
+  //   Object.keys(effect.alternate.props).filter((key) => key.startsWith("on"));
+
+  switch (effect.type) {
+    case "component": {
+      return null;
+    }
+    case "htmlNode": {
+      // oldHandlers.forEach((handleKey) => {
+      //   const eventType = handleKey.toLocaleLowerCase().substring(2);
+      //   effect.alternate.accessor.removeEventListener(
+      //     eventType,
+      //     effect.alternate.props[handleKey]
+      //   );
+      // });
+
+      domPropsKeys.forEach((key) => {
+        effect.accessor[key] = effect.props[key];
+      });
+
+      handlerKeys.forEach((handleKey) => {
+        const eventType = handleKey.toLocaleLowerCase().substring(2);
+        effect.accessor.addEventListener(eventType, effect.props[handleKey]);
+      });
+
+      return;
+    }
+    case "svgNode": {
+      domPropsKeys.forEach((key) => {
+        effect.accessor.setAttribute(key, effect.props[key]);
+      });
+      return;
+    }
+    case "textNode": {
+      domPropsKeys.forEach((key) => {
+        effect.accessor[key] = effect.props[key];
+      });
+      return;
+    }
+  }
 }
 
 function searchForChildAccessor(effect) {
-  if (effect.child.type === "component") {
-    return effect.child.child.accessor;
-  } else {
-    return effect.child.accessor;
+  if (effect.accessor) {
+    return effect.accessor;
   }
+  // assumes that component effect has only one direct child
+  let childEffect = effect.child.accessor;
+  if (!childEffect) {
+    return searchForChildAccessor(effect.child);
+  } else {
+    return childEffect;
+  }
+}
+
+function searchForHostParentAccessor(effect) {
+  const parent = effect.return;
+  const parentAccessor = parent.accessor;
+
+  // if (parent.type === "root") {
+  //   return parentAccessor.accessor;
+  // }
+
+  if (!parentAccessor) {
+    return searchForHostParentAccessor(parent);
+  }
+  return parentAccessor;
 }
 
 // HELPERS
@@ -411,66 +515,3 @@ function makeNetworkRequest(handler) {
 // RUN
 const root = document.querySelector("#root");
 render(jsxApp(), root);
-
-// -----------------
-// createVDOM linked list and loop
-
-// function createVDOM(effect) {
-//   console.log("effect", effect);
-//   let childEffect;
-//   switch (effect.type) {
-//     case "component": {
-//       childEffect = effect.function();
-//       break;
-//     }
-//     case "root":
-//     case "svgNode":
-//     case "textNode":
-//     case "htmlNode": {
-//       childEffect = effect.props.children;
-//     }
-//   }
-//   if (childEffect === null) {
-// effect.child = null;
-//     return null;
-//   }
-//   if (childEffect instanceof Array) {
-//     let newFirstChild = null;
-//     let previousChild = null;
-//     childEffect.forEach((singleChildEffect) => {
-//       let enhanced = { ...singleChildEffect, return: effect, sibling: null };
-//       if (newFirstChild === null) {
-//         newFirstChild = enhanced;
-//       } else {
-//         previousChild.sibling = enhanced;
-//       }
-//       previousChild = enhanced;
-//     });
-//     effect.child = newFirstChild;
-//     return effect.child;
-//   } else {
-//     effect.child = { ...childEffect, return: effect, sibling: null };
-//     return effect.child;
-//   }
-// }
-
-// let nextWip;
-// let wip;
-// wip = hostRoot;
-
-// while (wip) {
-//   nextWip = createVDOM(wip);
-//   if (nextWip !== null) {
-//     wip = nextWip;
-//   } else {
-//     console.log("nextWip", nextWip);
-//     console.log("wip", wip);
-//     do {
-//       if (wip.sibling !== null) {
-//         wip = wip.sibling;
-//         break;
-//       }
-//       wip = wip.return;
-//     } while (wip !== null);
-//   }
-// }

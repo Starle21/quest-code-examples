@@ -434,6 +434,9 @@ function makeNetworkRequest(handler) {
 const root = document.querySelector("#root");
 render(jsxApp(), root);
 
+// -----------------
+// createVDOM linked list and loop
+
 // function createVDOM(effect) {
 //   console.log("effect", effect);
 //   let childEffect;
