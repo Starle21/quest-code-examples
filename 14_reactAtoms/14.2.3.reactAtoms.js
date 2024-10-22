@@ -1,4 +1,4 @@
-// adding Hook
+// in between on the route to diff
 
 // DATA - WRITE - HOOK
 let _values = [];
@@ -135,8 +135,6 @@ const jsxText = (text) => {
 let vDOM;
 let prevVDOM;
 let topAccessor;
-let isFocusX = false;
-let isFocusY = false;
 
 // GATHER COMPONENTS TOGETHER
 // pass data as prop
@@ -162,22 +160,18 @@ function createVDOM(description, parent) {
 let _description;
 // TOP LEVEL API
 function render(description) {
-  setFocus();
-
   if (description) _description = description;
   pointer = 0;
   if (!vDOM) {
     vDOM = createVDOM(_description, null);
     topAccessor = createDOMNodes(vDOM);
     document.body.replaceChildren(topAccessor);
-    // console.log(vDOM);
+    console.log(vDOM);
   } else {
     prevVDOM = vDOM;
     vDOM = createVDOM(_description, null);
     diff(prevVDOM, vDOM);
   }
-
-  keepFocus();
 }
 
 // CREATE ACCESSORS, RENDER TO DOM
@@ -236,61 +230,61 @@ function createDOMNodes(element) {
 // children: array, object
 // update, create whole subtree, delete with replace
 // old vdom and newvdom needs to have the same length of array of children
-function diff(prevVDOM, vDOM) {
-  // console.log("---");
-  if (vDOM instanceof Array) {
-    // console.log("array");
-    vDOM.map((child, index) => {
-      diff(prevVDOM[index], child);
+function diff(current, wip) {
+  console.log("---");
+  if (wip instanceof Array) {
+    console.log("array", wip);
+    wip.map((child, index) => {
+      diff(current[index], child);
     });
   } else {
-    if (prevVDOM !== null) {
-      const current = Object.keys(vDOM.props)
+    if (current !== null) {
+      const wipProps = Object.keys(wip.props)
         .filter((key) => key !== "children")
         .reduce((obj, key) => {
-          obj[key] = vDOM.props[key];
+          obj[key] = wip.props[key];
           return obj;
         }, {});
-      const previous = Object.keys(prevVDOM.props)
+      const currentProps = Object.keys(current.props)
         .filter((key) => key !== "children")
         .reduce((obj, key) => {
-          obj[key] = prevVDOM.props[key];
+          obj[key] = current.props[key];
           return obj;
         }, {});
 
-      vDOM.accessor = prevVDOM.accessor;
+      wip.accessor = current.accessor;
 
       if (
-        vDOM.domType === prevVDOM.domType &&
-        JSON.stringify(current) !== JSON.stringify(previous)
+        wip.domType === current.domType &&
+        JSON.stringify(wipProps) !== JSON.stringify(currentProps)
       ) {
-        // console.log("different props", vDOM);
-        switch (vDOM.type) {
+        console.log("different props", wip);
+        switch (wip.type) {
           case "htmlNode":
           case "textNode": {
-            Object.keys(current).map((key) => {
-              vDOM.accessor[key] = current[key];
+            Object.keys(wipProps).map((key) => {
+              wip.accessor[key] = wipProps[key];
             });
             break;
           }
           case "svgNode": {
-            Object.keys(current).map((key) => {
-              vDOM.accessor.setAttribute(key, current[key]);
+            Object.keys(wipProps).map((key) => {
+              wip.accessor.setAttribute(key, wipProps[key]);
             });
             break;
           }
         }
-      } else if (vDOM.domType !== prevVDOM.domType) {
+      } else if (wip.domType !== current.domType) {
         // create whole subtree and replace
-        // console.log("different type", vDOM);
-        let node = createDOMNodes(vDOM);
-        vDOM.return.accessor.replaceChildren(node);
+        console.log("different type", wip);
+        let node = createDOMNodes(wip);
+        wip.return.accessor.replaceChildren(node);
       } else {
-        // console.log("same", vDOM);
+        console.log("same", wip);
       }
       // recurse down
-      if (vDOM.props.children !== null && prevVDOM.props.children !== null) {
-        diff(prevVDOM.props.children, vDOM.props.children);
+      if (wip.props.children !== null && current.props.children !== null) {
+        diff(current.props.children, wip.props.children);
       }
     }
   }
@@ -305,20 +299,6 @@ function makeNetworkRequest(handler) {
       y: Math.ceil(Math.random() * 60),
     });
   }, 2000);
-}
-
-function setFocus() {
-  topAccessor && document.activeElement == topAccessor.children[2]
-    ? (isFocusX = true)
-    : (isFocusX = false);
-  topAccessor && document.activeElement == topAccessor.children[4]
-    ? (isFocusY = true)
-    : (isFocusY = false);
-}
-
-function keepFocus() {
-  topAccessor && isFocusX && topAccessor.children[2].focus();
-  topAccessor && isFocusY && topAccessor.children[4].focus();
 }
 
 // RUN
