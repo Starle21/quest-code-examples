@@ -1,3 +1,4 @@
+// I have a 2D canvas only implementation that I use to drive the demo in the lambdaconf talk
 // just mount a canvas and do a MultiGather inside for draws and event handlers
 // here is e.g. a canvas component
 // you can then add e.g. a TransformContext to share matrix transforms from parent to child
@@ -9,7 +10,6 @@
 // reverse of context provider - capturing values from a subtree
 // makeCapture
 // <Capture then={()={}}/>  (Resume(Component))
-
 // <Gather>
 // <Yeet>{value}</Yeet>
 // <MultiGather>

@@ -1,22 +1,22 @@
-import { render, useState } from "./16.1.renderers-core";
+import { render, useState } from "./17.renderers-core";
 // -------------------------------------------------------------------------------
 // ELEMENTS / COMPONENTS
-export const jsxApp = ({ children }) => {
+export const jsxApp = () => {
   return {
     type: "component",
     domType: null,
-    props: { children },
-    function: () => App({ children }),
+    props: {},
+    function: () => App({}),
   };
 };
 
-const App = ({ children }) => {
+const App = ({}) => {
   const [xCoord, setXCoord] = useState("");
   const [yCoord, setYCoord] = useState("");
   const [side, setSide] = useState("");
   return jsxDiv({
     children: [
-      children,
+      // children,
       jsxBr(),
       jsxButton({
         children: jsxText("request remote data"),
@@ -261,6 +261,6 @@ const jsxH1WithNum = ({ className, num, children }) => {
 // -------------------------------------------------------------------------------
 // RUN
 const root = document.querySelector("#root");
-render(jsxApp({ children: jsxImplicitMemo() }), root);
-// render(jsxApp(), root);
+// render(jsxApp({ children: jsxImplicitMemo() }), root);
+render(jsxApp(), root);
 // render(jsxAppTest({ num: 100 }), root);
