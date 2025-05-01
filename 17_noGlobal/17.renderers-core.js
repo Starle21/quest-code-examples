@@ -94,29 +94,41 @@ export function getFiber() {
 
 // -------------------------------------------------------------------------------
 // CREATE ROOT
+let fiberRoot = null;
+let currentRoot = null;
 let wipRoot = null;
 
-const fiberRoot = {
-  accessor: null,
-  current: null,
-  type: "root",
-};
-let currentRoot = {
-  accessor: null,
-  alternate: null,
-  childEffect: null,
-  child: null,
-  props: null,
-  return: null,
-  sibling: null,
-  type: "root",
-  update: false,
-  childUpdate: false,
-};
-function createFiberAndHostRoot(hostAccessor) {
+function createFiberRoot() {
+  const fiberRoot = {
+    accessor: null,
+    current: null,
+    type: "root",
+  };
+  return fiberRoot;
+}
+
+function createCurrentRoot() {
+  const currentRoot = {
+    accessor: null,
+    alternate: null,
+    childEffect: null,
+    child: null,
+    props: null,
+    return: null,
+    sibling: null,
+    type: "root",
+    update: false,
+    childUpdate: false,
+  };
+  return currentRoot;
+}
+function connectFiberAndHostRoot(hostAccessor) {
   fiberRoot.accessor = hostAccessor;
-  fiberRoot.current = currentRoot;
   currentRoot.accessor = fiberRoot;
+  fiberRoot.current = currentRoot;
+}
+function markCurrentRootForUpdate() {
+  currentRoot.update = true;
 }
 function createWipRoot(currentRoot, childEffect) {
   let wipRoot = currentRoot.alternate;
@@ -143,21 +155,27 @@ function createWipRoot(currentRoot, childEffect) {
 
 // -------------------------------------------------------------------------------
 // TOP LEVEL API
-function render(Effect, DOMRoot) {
+function render(effect, domRoot) {
   // MOUNT - dealing with create
-  if (!wipRoot) {
-    createFiberAndHostRoot(DOMRoot);
-    currentRoot.update = true;
+  if (!fiberRoot) {
+    fiberRoot = createFiberRoot();
+    currentRoot = createCurrentRoot();
+    connectFiberAndHostRoot(domRoot);
+    markCurrentRootForUpdate();
+    // STEP
   } else {
     // RERENDER - dealing with create, update, delete
-    currentRoot = fiberRoot.current;
+    // currentRoot = fiberRoot.current;
   }
 
-  wipRoot = createWipRoot(currentRoot, Effect);
+  wipRoot = createWipRoot(currentRoot, effect);
   wip = wipRoot;
+  // STEP
   loop();
   traverseAndCommitEffects(wipRoot);
   fiberRoot.current = wipRoot;
+  currentRoot = wipRoot;
+  wipRoot = null;
   console.log("---");
 }
 
@@ -262,12 +280,12 @@ function goDown(wip) {
 
       childEffect = wip.function(props);
 
+      currentlyProcessedFiber = null;
       if (childEffect === null) {
         wip.child = null;
         return null;
       }
 
-      currentlyProcessedFiber = null;
       break;
     }
   }
@@ -376,6 +394,7 @@ function reconcileChildArray(currentFiber, childEffect, returnFiber, subroot) {
 
 function markChildPlacement(newFiber, subroot) {
   if (subroot && newFiber.alternate === null) {
+    console.error("mark placement");
     newFiber.flag = "CREATE";
   }
 }
@@ -387,6 +406,7 @@ function markChildrenToDelete(childToDelete, parent) {
   }
 }
 function markChildToDelete(childToDelete, parent) {
+  console.error("mark delete", childToDelete);
   const deletions = parent.deletions;
   if (deletions == null) {
     parent.deletions = [childToDelete];
@@ -467,7 +487,6 @@ function cloneFiber(fiber, returnFiber) {
 // -------------------------------------------------------------------------------
 // COMPLETE
 function goUp(completedWork) {
-  let next = null;
   do {
     console.log("complete", completedWork);
     let current = completedWork.alternate;
@@ -492,8 +511,10 @@ function goUp(completedWork) {
           ) {
             break;
           }
+          console.error("mark update");
           markUpdate(completedWork);
         } else {
+          console.error("create node");
           let node = createHostNode(
             completedWork.type,
             completedWork.domType,
@@ -509,8 +530,10 @@ function goUp(completedWork) {
           if (current.props === completedWork.props) {
             break;
           }
+          console.error("mark update");
           markUpdate(completedWork);
         } else {
+          console.error("create node");
           let node = createHostTextNode(completedWork.props);
           completedWork.accessor = node;
         }
@@ -648,10 +671,12 @@ function commitEffect(effect) {
 }
 
 function commitPlacement(child, parent, type) {
+  console.error("commit placement", child);
   appendChildToContainer(parent, child, type);
 }
 
 function commitDelete(child, parent, childType, childProps) {
+  console.error("commit delete", child);
   removeChild(parent, child, childType, childProps);
 }
 

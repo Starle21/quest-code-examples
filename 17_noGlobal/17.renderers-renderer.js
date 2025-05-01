@@ -78,13 +78,28 @@ export function removeChild(container, child, childType, newProps) {
 // update - call node props with new data
 // other dom nodes
 export function shouldNotMarkForCommitUpdate(oldProps, newProps) {
-  // TODO: JSON.stringify makes it not update when props is function probably
-  if (JSON.stringify(oldProps) === JSON.stringify(newProps)) {
-    // if (oldProps === newProps) {
-    return true;
-  } else {
-    return false;
+  const oldPropsWithoutChildren = Object.keys(oldProps)
+    .filter((key) => key !== "children")
+    .reduce((acc, key) => {
+      acc[key] = oldProps[key];
+      return acc;
+    }, {});
+  const newPropsWithoutChildren = Object.keys(newProps)
+    .filter((key) => key !== "children")
+    .reduce((acc, key) => {
+      acc[key] = newProps[key];
+      return acc;
+    }, {});
+  for (let prop in newPropsWithoutChildren) {
+    let mark = Object.is(
+      oldPropsWithoutChildren[prop],
+      newPropsWithoutChildren[prop]
+    );
+    if (!mark) {
+      return false;
+    }
   }
+  return true;
 }
 
 // text

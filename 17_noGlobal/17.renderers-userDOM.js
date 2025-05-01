@@ -178,19 +178,24 @@ export const jsxAppTest = ({ num }) => {
 
 const AppTest = ({ num }) => {
   const [on, setOn] = useState(true);
-  let sum = 5 + 3;
+  const [sum, setSum] = useState(8);
   return jsxDivWithNum({
     num,
     children: [
-      jsxButtonWithOn({
-        turnedOn: on,
+      jsxButton({
         onClick: () => {
           setOn((on) => !on);
         },
         children: jsxText(`Toggle ${on ? "off" : "on"}`),
       }),
+      jsxButton({
+        onClick: () => {
+          setSum((sum) => sum + 1);
+        },
+        children: jsxText(`Add 1`),
+      }),
       jsxText(`sum is: ${sum}`),
-      jsxTestComp({ test: "testComp", on }),
+      jsxTestComp({ test: "testComp" }),
       on
         ? jsxDivWithNum({
             num: 3,
@@ -200,7 +205,7 @@ const AppTest = ({ num }) => {
               children: jsxText("On!"),
             }),
           })
-        : null,
+        : jsxText(`Off`),
       on
         ? jsxDivWithNum({
             num: 5,
@@ -220,12 +225,19 @@ const jsxTestComp = ({ test, on }) => {
   };
 };
 
-const TestComp = ({ test, on }) => {
+const TestComp = ({ test }) => {
+  const [on, setOn] = useState(true);
   return jsxDivWithNum({
     num: test,
-    children: jsxText(
-      on ? "It's on, rise and shine!" : "It's off, go to sleep!"
-    ),
+    children: [
+      jsxText(on ? "It's on, rise and shine!" : "It's off, go to sleep!"),
+      jsxButton({
+        onClick: () => {
+          setOn((on) => !on);
+        },
+        children: jsxText(`Toggle ${on ? "off" : "on"}`),
+      }),
+    ],
   });
 };
 
@@ -238,13 +250,13 @@ const jsxDivWithNum = ({ num, children }) => {
   };
 };
 
-const jsxButtonWithOn = ({ turnedOn, onClick, children }) => {
-  return {
-    type: "htmlNode",
-    domType: "button",
-    props: { turnedOn, onClick, children },
-  };
-};
+// const jsxButtonWithOn = ({ turnedOn, onClick, children }) => {
+//   return {
+//     type: "htmlNode",
+//     domType: "button",
+//     props: { turnedOn, onClick, children },
+//   };
+// };
 
 const jsxH1WithNum = ({ className, num, children }) => {
   return {
@@ -262,5 +274,5 @@ const jsxH1WithNum = ({ className, num, children }) => {
 // RUN
 const root = document.querySelector("#root");
 // render(jsxApp({ children: jsxImplicitMemo() }), root);
-render(jsxApp(), root);
-// render(jsxAppTest({ num: 100 }), root);
+// render(jsxApp(), root);
+render(jsxAppTest({ num: 100 }), root);
